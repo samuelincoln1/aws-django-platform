@@ -46,6 +46,7 @@ Thumbs.db
 *.avi
 *.flv
 *.mov
+
 *.wmv
 
 .venv/
@@ -56,3 +57,5 @@ __pycache__/
 *.pyo
 *.pyd
 *.env
+*.terraform*
+*.tfstate*
