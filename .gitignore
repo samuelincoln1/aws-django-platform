@@ -48,3 +48,11 @@ Thumbs.db
 *.mov
 *.wmv
 
+.venv/
+venv/
+
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.env
