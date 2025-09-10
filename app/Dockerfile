@@ -11,5 +11,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+RUN useradd --create-home --shell /bin/bash app \
+    && chown -R app:app /app
+USER app
+
 EXPOSE 8000
-CMD sh -c "python manage.py migrate --noinput && python manage.py collectstatic --noinput || true && gunicorn app.wsgi:application --bind 0.0.0.0:8000 --workers 3"
+CMD sh -c "python manage.py migrate --noinput && \
+           python manage.py collectstatic --noinput --clear && \
+           gunicorn app.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120"

@@ -40,3 +40,60 @@ module "vpc" {
 
   map_public_ip_on_launch = false
 }
+
+module "alb" {
+  source = "./modules/alb"
+  
+  vpc_id            = module.vpc.vpc_id
+  public_subnet_ids = module.vpc.public_subnet_ids
+
+  # Initially without SSL certificate (only HTTP)
+  # certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+}
+
+# ==================== OUTPUTS ====================
+
+output "vpc_info" {
+  description = "Information of the created VPC"
+  value = {
+    vpc_id     = module.vpc.vpc_id
+    cidr_block = module.vpc.vpc_cidr_block
+  }
+}
+
+output "public_subnets" {
+  description = "Public subnets for ALB"
+  value = {
+    subnet_ids = module.vpc.public_subnet_ids
+    az1_id     = module.vpc.public_subnet_az1_id
+    az2_id     = module.vpc.public_subnet_az2_id
+  }
+}
+
+output "private_ecs_subnets" {
+  description = "Private subnets for ECS Fargate"
+  value = {
+    subnet_ids = module.vpc.private_ecs_subnet_ids
+    az1_id     = module.vpc.private_ecs_subnet_az1_id
+    az2_id     = module.vpc.private_ecs_subnet_az2_id
+  }
+}
+
+output "private_rds_subnets" {
+  description = "Private subnets for RDS"
+  value = {
+    subnet_ids = module.vpc.private_rds_subnet_ids
+    primary_id = module.vpc.private_rds_subnet_az1_id
+    standby_id = module.vpc.private_rds_subnet_az2_id
+  }
+}
+
+# Outputs of the ALB
+output "alb_info" {
+  description = "Information of the Application Load Balancer"
+  value = {
+    dns_name         = module.alb.alb_dns_name
+    url              = module.alb.alb_url
+    target_group_arn = module.alb.target_group_arn
+  }
+}
