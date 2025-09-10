@@ -16,9 +16,12 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from core.views import healthz
+from core.views import healthz, home, items_list, item_detail
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("healthz/", healthz),
+    path("", home, name="home"),
+    path("api/items/", items_list, name="items_list"),
+    path("api/items/<int:id>/", item_detail, name="item_detail"),
 ]

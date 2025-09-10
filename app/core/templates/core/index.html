@@ -1,0 +1,41 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Django + ECS + RDS</title>
+    <link rel="stylesheet" href="{% static 'core/styles.css' %}">
+  </head>
+  <body>
+    <div class="container">
+      <h1>Items</h1>
+
+      <form id="create-form" class="card">
+        <label for="name">Create new item</label>
+        <div class="row">
+          <input id="name" placeholder="Item name" required />
+          <button type="submit">Add</button>
+        </div>
+      </form>
+
+      <div class="card">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Created at</th>
+              <th>Updated at</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="items-body"></tbody>
+        </table>
+      </div>
+
+      <div id="status" class="status" role="status" aria-live="polite"></div>
+    </div>
+
+    <script src="{% static 'core/app.js' %}"></script>
+  </body>
+</html>

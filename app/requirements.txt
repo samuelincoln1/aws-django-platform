@@ -1,0 +1,5 @@
+Django==5.0.7
+gunicorn==21.2.0
+psycopg[binary]==3.2.1
+boto3==1.34.130
+django-storages==1.14.3
