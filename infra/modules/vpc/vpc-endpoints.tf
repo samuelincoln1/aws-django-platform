@@ -5,11 +5,12 @@ resource "aws_vpc_endpoint" "s3" {
   vpc_endpoint_type = "Gateway"
   route_table_ids   = [aws_route_table.private.id]
 
-  # Política específica para ECR (starport buckets)
+
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
+        Sid = "ECRAccess"
         Effect = "Allow"
         Principal = "*"
         Action = [
@@ -17,6 +18,23 @@ resource "aws_vpc_endpoint" "s3" {
         ]
         Resource = [
           "arn:aws:s3:::prod-us-east-1-starport-layer-bucket/*"
+        ]
+      },
+      {
+        Sid = "StaticFilesAccess"
+        Effect = "Allow"
+        Principal = "*"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:HeadObject",    
+          "s3:ListBucket",
+          "s3:GetBucketLocation"
+        ]
+        Resource = [
+          "arn:aws:s3:::samuel-lincoln-django-app-static",
+          "arn:aws:s3:::samuel-lincoln-django-app-static/*"
         ]
       }
     ]

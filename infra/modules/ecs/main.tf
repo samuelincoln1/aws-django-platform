@@ -151,6 +151,7 @@ resource "aws_ecs_task_definition" "django_app" {
   cpu                      = var.cpu
   memory                   = var.memory
   execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
+  task_role_arn            = aws_iam_role.ecs_task_role.arn
 
   container_definitions = jsonencode([
     {
@@ -215,7 +216,15 @@ resource "aws_ecs_task_definition" "django_app" {
         },
         {
           name  = "USE_S3"
-          value = "false"
+          value = "true" #TROCAR
+        },
+        {
+          name  = "AWS_STORAGE_BUCKET_NAME"
+          value = "samuel-lincoln-django-app-static"
+        },
+        {
+          name  = "AWS_REGION"
+          value = "us-east-1"
         }
       ]
 
@@ -262,6 +271,84 @@ resource "aws_ecs_task_definition" "django_app" {
     Name        = "${var.service_name}-task-definition"
     Environment = var.environment
   }
+}
+
+# ECS Task Role (para a aplicação acessar S3)
+resource "aws_iam_role" "ecs_task_role" {
+  name = "${var.service_name}-task-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ecs-tasks.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name        = "${var.service_name}-task-role"
+    Environment = var.environment
+  }
+}
+
+# Policy para acessar S3 
+# resource "aws_iam_role_policy" "ecs_task_s3_policy" {
+#   name = "${var.service_name}-s3-policy"
+#   role = aws_iam_role.ecs_task_role.id
+
+#   policy = jsonencode({
+#     Version = "2012-10-17"
+#     Statement = [
+#       {
+#         Effect = "Allow"
+#         Action = [
+#           "s3:GetObject",
+#           "s3:PutObject",
+#           "s3:DeleteObject",
+#           "s3:ListBucket",
+#           "s3:GetBucketLocation"
+#         ]
+#         Resource = [
+#           "arn:aws:s3:::${var.aws_storage_bucket_name}",
+#           "arn:aws:s3:::${var.aws_storage_bucket_name}/*"
+#         ]
+#       }
+#     ]
+#   })
+# }
+
+# TROCAR
+resource "aws_iam_role_policy" "ecs_task_s3_policy" {
+  name = "${var.service_name}-s3-policy"
+  role = aws_iam_role.ecs_task_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:ListBucket"
+        ]
+        Resource = "arn:aws:s3:::${var.aws_storage_bucket_name}"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:HeadObject"
+        ]
+        Resource = "arn:aws:s3:::${var.aws_storage_bucket_name}/*"
+      }
+    ]
+  })
 }
 
 # ECS Service

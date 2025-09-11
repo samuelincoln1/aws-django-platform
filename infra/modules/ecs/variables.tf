@@ -106,7 +106,6 @@ variable "use_s3" {
 variable "aws_storage_bucket_name" {
   type        = string
   description = "S3 bucket name for static files"
-  default     = "trocar-depois"
 }
 
 variable "aws_region" {
@@ -115,11 +114,16 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
-# Secrets ARNs from Secrets Manager
 variable "secret_arns" {
   description = "ARNs of secrets from Secrets Manager"
   type = object({
     secret_key     = string
     db_credentials = string
   })
+}
+
+variable "s3_bucket_arn" {
+  description = "ARN of the S3 bucket for static files"
+  type        = string
+  default     = ""
 }

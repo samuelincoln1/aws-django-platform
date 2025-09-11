@@ -84,6 +84,12 @@ module "secrets" {
   db_password      = var.db_password
 }
 
+module "s3" {
+  source      = "./modules/s3"
+  bucket_name = "samuel-lincoln-django-app-static"
+  aws_region  = "us-east-1"
+}
+
 
 module "ecs" {
   source = "./modules/ecs"
@@ -105,8 +111,9 @@ module "ecs" {
   django_allowed_hosts  = "*"
   db_host               = "localhost"
   db_name               = "app"
-  use_s3                = "false"
-  aws_storage_bucket_name = "trocar-depois"
+  use_s3                = "true"
+  aws_storage_bucket_name = module.s3.bucket_name
+  s3_bucket_arn           = module.s3.bucket_arn
   aws_region      = "us-east-1"
 
   desired_count         = 6
@@ -115,6 +122,12 @@ module "ecs" {
   secret_arns           = module.secrets.secret_arns
  
 }
+
+
+
+
+
+
 
 
 
