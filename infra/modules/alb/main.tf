@@ -52,7 +52,7 @@ resource "aws_lb" "main" {
   }
 }
 
-# Target Group
+# Target Group TROCAR ?
 resource "aws_lb_target_group" "ecs" {
   name        = "ecs-tg-devops-test"
   port        = 8000
@@ -65,11 +65,11 @@ resource "aws_lb_target_group" "ecs" {
     healthy_threshold   = 2
     interval            = 30
     matcher             = "200"
-    path                = "/" # healthz
+    path                = "/healthz/"
     port                = "traffic-port"
     protocol            = "HTTP"
-    timeout             = 5
-    unhealthy_threshold = 2
+    timeout             = 10
+    unhealthy_threshold = 3
   }
 
   tags = {

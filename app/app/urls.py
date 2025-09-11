@@ -17,6 +17,8 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 from core.views import healthz, home, items_list, item_detail
+from django.conf import settings
+from django.conf.urls.static import static
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -25,3 +27,6 @@ urlpatterns = [
     path("api/items/", items_list, name="items_list"),
     path("api/items/<int:id>/", item_detail, name="item_detail"),
 ]
+
+if settings.STATIC_URL:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

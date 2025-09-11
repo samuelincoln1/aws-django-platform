@@ -142,6 +142,7 @@ if USE_S3:
     STATICFILES_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
     AWS_DEFAULT_ACL = None
     STATIC_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/"
-    
+else:
+    STATIC_URL = "/static/"
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

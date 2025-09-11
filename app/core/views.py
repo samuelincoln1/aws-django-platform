@@ -2,25 +2,27 @@ import json
 from django.http import JsonResponse, HttpResponseNotAllowed
 from django.shortcuts import render, get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
+from django.db import transaction
 from .models import Item
 
 @csrf_exempt
 def healthz(request):
     try:
-        # # Test connection with database
-        # from django.db import connection
-        # with connection.cursor() as cursor:
-        #     cursor.execute("SELECT 1")
+        # Test connection with database
+        from django.db import connection
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
         
         return JsonResponse({
             "status": "healthy",
-            # "database": "connected",
+            "database": "connected",
             "service": "django-app"
         })
     except Exception as e:
         return JsonResponse({
             "status": "unhealthy", 
-            "error": str(e)
+            "error": str(e),
+            "database": "disconnected"
         }, status=500)
 
 
@@ -60,6 +62,8 @@ def item_detail(request, id):
         except json.JSONDecodeError:
             return JsonResponse({"error": "JSON inválido"}, status=400)
     if request.method == "DELETE":
-        item.delete()
-        return JsonResponse({}, status=204)
+        with transaction.atomic():
+            item.delete()
+            transaction.on_commit(lambda: print(f"Item {id} deletado e commitado!"))
+        return JsonResponse({"deleted": True}, status=200)
     return HttpResponseNotAllowed(["GET", "PUT", "PATCH", "DELETE"])

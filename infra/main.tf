@@ -91,6 +91,34 @@ module "s3" {
 }
 
 
+
+module "rds" {
+  source = "./modules/rds"
+
+  environment = "devops-test"
+  vpc_id      = module.vpc.vpc_id
+
+  private_subnet_ids = module.vpc.private_rds_subnet_ids
+  
+  vpc_cidr_block = module.vpc.vpc_cidr_block
+  
+  db_name     = "app"
+  db_username = var.db_user
+  db_password = var.db_password
+  
+  instance_class         = "db.t3.micro"
+  allocated_storage      = 20
+  max_allocated_storage  = 100
+  multi_az              = false
+  deletion_protection   = false
+  skip_final_snapshot   = true
+  
+  # Monitoring
+  monitoring_interval                   = 60
+  performance_insights_enabled          = true
+  performance_insights_retention_period = 7
+}
+
 module "ecs" {
   source = "./modules/ecs"
 
@@ -106,19 +134,20 @@ module "ecs" {
   vpc_endpoints_security_group_id = module.vpc.vpc_endpoints_security_group_id 
   container_image       = "${module.ecr.repository_url}:latest"
 
-  db_port               = "5432"
+
   django_debug          = "False"
-  django_allowed_hosts  = "*"
-  db_host               = "localhost"
-  db_name               = "app"
+  django_allowed_hosts = ".${module.alb.alb_dns_name},localhost,127.0.0.1"
+  db_host               = module.rds.db_endpoint
+  db_port               = module.rds.db_port
+  db_name               = module.rds.db_name
   use_s3                = "true"
   aws_storage_bucket_name = module.s3.bucket_name
   s3_bucket_arn           = module.s3.bucket_arn
   aws_region      = "us-east-1"
 
-  desired_count         = 6
-  cpu                   = 512
-  memory                = 1024
+  desired_count         = 2
+  cpu                   = 2048
+  memory                = 4096
   secret_arns           = module.secrets.secret_arns
  
 }
@@ -130,62 +159,77 @@ module "ecs" {
 
 
 
-
-
 # ==================== OUTPUTS ====================
 
-# VPC Outputs
-output "vpc_info" {
-  description = "Information of the created VPC"
+# # VPC Outputs
+# output "vpc_info" {
+#   description = "Information of the created VPC"
+#   value = {
+#     vpc_id     = module.vpc.vpc_id
+#     cidr_block = module.vpc.vpc_cidr_block
+#   }
+# }
+
+# output "public_subnets" {
+#   description = "Public subnets for ALB"
+#   value = {
+#     subnet_ids = module.vpc.public_subnet_ids
+#     az1_id     = module.vpc.public_subnet_az1_id
+#     az2_id     = module.vpc.public_subnet_az2_id
+#   }
+# }
+
+# output "private_ecs_subnets" {
+#   description = "Private subnets for ECS Fargate"
+#   value = {
+#     subnet_ids = module.vpc.private_ecs_subnet_ids
+#     az1_id     = module.vpc.private_ecs_subnet_az1_id
+#     az2_id     = module.vpc.private_ecs_subnet_az2_id
+#   }
+# }
+
+# output "private_rds_subnets" {
+#   description = "Private subnets for RDS"
+#   value = {
+#     subnet_ids = module.vpc.private_rds_subnet_ids
+#     primary_id = module.vpc.private_rds_subnet_az1_id
+#     standby_id = module.vpc.private_rds_subnet_az2_id
+#   }
+# }
+
+# # ALB Outputs
+# output "alb_info" {
+#   description = "Information of the Application Load Balancer"
+#   value = {
+#     dns_name         = module.alb.alb_dns_name
+#     url              = module.alb.alb_url
+#     target_group_arn = module.alb.target_group_arn
+#   }
+# }
+
+# # ECR Outputs
+# output "ecr_info" {
+#   description = "Informações do ECR"
+#   value = {
+#     repository_url  = module.ecr.repository_url
+#     repository_name = module.ecr.repository_name
+#     registry_id     = module.ecr.registry_id
+#   }
+# }
+
+# RDS OUTPUTS
+output "rds_info" {
+  description = "RDS PostgreSQL database information"
   value = {
-    vpc_id     = module.vpc.vpc_id
-    cidr_block = module.vpc.vpc_cidr_block
+    endpoint    = module.rds.db_endpoint
+    port        = module.rds.db_port
+    database    = module.rds.db_name
+    instance_id = module.rds.db_instance_id
   }
 }
 
-output "public_subnets" {
-  description = "Public subnets for ALB"
-  value = {
-    subnet_ids = module.vpc.public_subnet_ids
-    az1_id     = module.vpc.public_subnet_az1_id
-    az2_id     = module.vpc.public_subnet_az2_id
-  }
-}
-
-output "private_ecs_subnets" {
-  description = "Private subnets for ECS Fargate"
-  value = {
-    subnet_ids = module.vpc.private_ecs_subnet_ids
-    az1_id     = module.vpc.private_ecs_subnet_az1_id
-    az2_id     = module.vpc.private_ecs_subnet_az2_id
-  }
-}
-
-output "private_rds_subnets" {
-  description = "Private subnets for RDS"
-  value = {
-    subnet_ids = module.vpc.private_rds_subnet_ids
-    primary_id = module.vpc.private_rds_subnet_az1_id
-    standby_id = module.vpc.private_rds_subnet_az2_id
-  }
-}
-
-# ALB Outputs
-output "alb_info" {
-  description = "Information of the Application Load Balancer"
-  value = {
-    dns_name         = module.alb.alb_dns_name
-    url              = module.alb.alb_url
-    target_group_arn = module.alb.target_group_arn
-  }
-}
-
-# ECR Outputs
-output "ecr_info" {
-  description = "Informações do ECR"
-  value = {
-    repository_url  = module.ecr.repository_url
-    repository_name = module.ecr.repository_name
-    registry_id     = module.ecr.registry_id
-  }
+output "rds_connection_info" {
+  description = "Database connection details for application"
+  value       = module.rds.db_connection_info
+  sensitive   = false
 }

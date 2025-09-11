@@ -157,7 +157,6 @@ resource "aws_ecs_task_definition" "django_app" {
     {
       name  = "django-app"
       image = var.container_image
-      user  = "app:app"
 
       portMappings = [
         {
@@ -207,41 +206,50 @@ resource "aws_ecs_task_definition" "django_app" {
           value = "False"
         },
         {
-          name  = "DATABASE_URL"
-          value = "sqlite:///db.sqlite3"
-        },
-        {
           name  = "ALLOWED_HOSTS"
           value = "*"
         },
-        {
-          name  = "USE_S3"
-          value = "true" #TROCAR
+         {
+          name  = "DB_HOST"
+          value = var.db_host
         },
         {
+          name  = "DB_PORT"
+          value = var.db_port
+        },
+        {
+          name  = "DB_NAME"
+          value = var.db_name
+        },
+        {
+          name  = "USE_S3"
+          value = var.use_s3
+        },
+        
+        {
           name  = "AWS_STORAGE_BUCKET_NAME"
-          value = "samuel-lincoln-django-app-static"
+          value = var.aws_storage_bucket_name
         },
         {
           name  = "AWS_REGION"
-          value = "us-east-1"
+          value = var.aws_region
         }
       ]
 
-      # secrets = [
-      #   {
-      #     name      = "SECRET_KEY"
-      #     valueFrom = var.secret_arns.secret_key
-      #   },
-      #   {
-      #     name      = "DB_USER"
-      #     valueFrom = "${var.secret_arns.db_credentials}:username::"
-      #   },
-      #   {
-      #     name      = "DB_PASSWORD"
-      #     valueFrom = "${var.secret_arns.db_credentials}:password::"
-      #   }
-      # ]
+      secrets = [
+        {
+          name      = "SECRET_KEY"
+          valueFrom = var.secret_arns.secret_key
+        },
+        {
+          name      = "DB_USER"
+          valueFrom = "${var.secret_arns.db_credentials}:username::"
+        },
+        {
+          name      = "DB_PASSWORD"
+          valueFrom = "${var.secret_arns.db_credentials}:password::"
+        }
+      ]
 
       logConfiguration = {
         logDriver = "awslogs"
@@ -260,9 +268,9 @@ resource "aws_ecs_task_definition" "django_app" {
           "curl -f http://localhost:8000/healthz/ || exit 1"
         ]
         interval    = 30
-        timeout     = 5
-        retries     = 3
-        startPeriod = 60
+        timeout     = 10
+        retries     = 5
+        startPeriod = 120
       }
     }
   ])
@@ -370,8 +378,9 @@ resource "aws_ecs_service" "django_app" {
     container_port   = 8000
   }
 
-  deployment_maximum_percent         = 200
   deployment_minimum_healthy_percent = 50
+  deployment_maximum_percent         = 150
+  health_check_grace_period_seconds = 60
 
   depends_on = [aws_iam_role_policy_attachment.ecs_task_execution_role_policy]
 
