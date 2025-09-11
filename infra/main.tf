@@ -1,3 +1,24 @@
+# ============================================
+# VARIABLES - Secrets (sensitive)
+# ============================================
+variable "django_secret_key" {
+  description = "Django SECRET_KEY"
+  type        = string
+  sensitive   = true
+}
+
+variable "db_user" {
+  description = "Database user"
+  type        = string
+  default     = "app"
+}
+
+variable "db_password" {
+  description = "Database password"
+  type        = string
+  sensitive   = true
+}
+
 terraform {
   backend "s3" {
     bucket         = "samuellincoln-terraform-state-devops-test"
@@ -43,7 +64,6 @@ module "vpc" {
 
 module "alb" {
   source = "./modules/alb"
-  
   vpc_id            = module.vpc.vpc_id
   public_subnet_ids = module.vpc.public_subnet_ids
 
@@ -51,8 +71,57 @@ module "alb" {
   # certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
 }
 
+module "ecr" {
+  source = "./modules/ecr"
+}
+
+
+module "secrets" {
+  source = "./modules/secrets"
+
+  django_secret_key = var.django_secret_key
+  db_user          = var.db_user
+  db_password      = var.db_password
+}
+
+
+module "ecs" {
+  source = "./modules/ecs"
+
+  cluster_name          = "django-app-cluster"
+  service_name          = "django-app-service"
+  environment           = "devops-test"
+  
+  vpc_id                = module.vpc.vpc_id
+  vpc_cidr_block        = module.vpc.vpc_cidr_block
+  private_subnet_ids    = module.vpc.private_ecs_subnet_ids
+  alb_target_group_arn  = module.alb.target_group_arn
+  alb_security_group_id = module.alb.alb_security_group_id
+  vpc_endpoints_security_group_id = module.vpc.vpc_endpoints_security_group_id 
+  container_image       = "${module.ecr.repository_url}:latest"
+
+  db_port               = "5432"
+  django_debug          = "False"
+  django_allowed_hosts  = "*"
+  db_host               = "localhost"
+  db_name               = "app"
+  use_s3                = "false"
+  aws_storage_bucket_name = "trocar-depois"
+  aws_region      = "us-east-1"
+
+  desired_count         = 6
+  cpu                   = 512
+  memory                = 1024
+  secret_arns           = module.secrets.secret_arns
+ 
+}
+
+
+
+
 # ==================== OUTPUTS ====================
 
+# VPC Outputs
 output "vpc_info" {
   description = "Information of the created VPC"
   value = {
@@ -88,12 +157,22 @@ output "private_rds_subnets" {
   }
 }
 
-# Outputs of the ALB
+# ALB Outputs
 output "alb_info" {
   description = "Information of the Application Load Balancer"
   value = {
     dns_name         = module.alb.alb_dns_name
     url              = module.alb.alb_url
     target_group_arn = module.alb.target_group_arn
+  }
+}
+
+# ECR Outputs
+output "ecr_info" {
+  description = "Informações do ECR"
+  value = {
+    repository_url  = module.ecr.repository_url
+    repository_name = module.ecr.repository_name
+    registry_id     = module.ecr.registry_id
   }
 }

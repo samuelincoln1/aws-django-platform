@@ -4,8 +4,24 @@ from django.shortcuts import render, get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
 from .models import Item
 
+@csrf_exempt
 def healthz(request):
-    return JsonResponse({"status": "ok"})
+    try:
+        # # Test connection with database
+        # from django.db import connection
+        # with connection.cursor() as cursor:
+        #     cursor.execute("SELECT 1")
+        
+        return JsonResponse({
+            "status": "healthy",
+            # "database": "connected",
+            "service": "django-app"
+        })
+    except Exception as e:
+        return JsonResponse({
+            "status": "unhealthy", 
+            "error": str(e)
+        }, status=500)
 
 
 def home(request):
