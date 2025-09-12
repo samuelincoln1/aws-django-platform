@@ -241,7 +241,7 @@ bitbucket_repo_name  = "username/repository"
 
 **Samuel Lincoln**
 - Bitbucket: @samuellincoln
-- LinkedIn: Samuel Lincoln
+- LinkedIn: https://www.linkedin.com/in/samuel-gomes-213429209/
 
 ---
 
