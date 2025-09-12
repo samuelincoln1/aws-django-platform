@@ -82,6 +82,7 @@ resource "aws_cloudfront_distribution" "static_files" {
   }
 
   enabled = true
+  web_acl_id = var.web_acl_id
   
   default_cache_behavior {
     allowed_methods        = ["GET", "HEAD", "OPTIONS"]

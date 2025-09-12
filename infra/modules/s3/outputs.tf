@@ -17,3 +17,8 @@ output "bucket_arn" {
   description = "ARN of the S3 bucket"
   value       = aws_s3_bucket.static_files.arn
 }
+
+output "cloudfront_distribution_arn" {
+  description = "ARN of the CloudFront distribution"
+  value       = aws_cloudfront_distribution.static_files.arn
+}

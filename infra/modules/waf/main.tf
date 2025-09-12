@@ -1,7 +1,7 @@
 # WAF Web ACL
 resource "aws_wafv2_web_acl" "django_app" {
   name  = "django-app-waf-${var.environment}"
-  scope = "REGIONAL"
+  scope = "CLOUDFRONT"
 
   default_action {
     allow {}
@@ -133,9 +133,4 @@ resource "aws_wafv2_web_acl" "django_app" {
     metric_name                = "DjangoAppWebACL"
     sampled_requests_enabled   = true
   }
-}
-
-resource "aws_wafv2_web_acl_association" "django_app" {
-  resource_arn = var.alb_arn
-  web_acl_arn  = aws_wafv2_web_acl.django_app.arn
 }

@@ -99,6 +99,7 @@ module "s3" {
   bucket_name = var.s3_bucket_name
   aws_region  = "us-east-1"
   ecs_task_role_arn = module.ecs.ecs_task_role_arn
+  web_acl_id = module.waf.web_acl_arn 
 }
 
 module "rds" {
@@ -159,7 +160,6 @@ module "ecs" {
 module "waf" {
   source = "./modules/waf"
   environment = "devops-test"
-  alb_arn = module.alb.alb_arn
 }
 
 # ==================== OUTPUTS ====================
