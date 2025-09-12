@@ -304,33 +304,7 @@ resource "aws_iam_role" "ecs_task_role" {
   }
 }
 
-# Policy para acessar S3 
-# resource "aws_iam_role_policy" "ecs_task_s3_policy" {
-#   name = "${var.service_name}-s3-policy"
-#   role = aws_iam_role.ecs_task_role.id
-
-#   policy = jsonencode({
-#     Version = "2012-10-17"
-#     Statement = [
-#       {
-#         Effect = "Allow"
-#         Action = [
-#           "s3:GetObject",
-#           "s3:PutObject",
-#           "s3:DeleteObject",
-#           "s3:ListBucket",
-#           "s3:GetBucketLocation"
-#         ]
-#         Resource = [
-#           "arn:aws:s3:::${var.aws_storage_bucket_name}",
-#           "arn:aws:s3:::${var.aws_storage_bucket_name}/*"
-#         ]
-#       }
-#     ]
-#   })
-# }
-
-# TROCAR
+# S3 IAM Role Policy
 resource "aws_iam_role_policy" "ecs_task_s3_policy" {
   name = "${var.service_name}-s3-policy"
   role = aws_iam_role.ecs_task_role.id
@@ -379,7 +353,7 @@ resource "aws_ecs_service" "django_app" {
   }
 
   deployment_minimum_healthy_percent = 50
-  deployment_maximum_percent         = 150
+  deployment_maximum_percent         = 300
   health_check_grace_period_seconds = 60
 
   depends_on = [aws_iam_role_policy_attachment.ecs_task_execution_role_policy]

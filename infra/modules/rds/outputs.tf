@@ -1,5 +1,3 @@
-# ==================== DATABASE CONNECTION INFO ====================
-
 output "db_instance_id" {
   description = "RDS instance ID"
   value       = aws_db_instance.postgresql.id
@@ -25,21 +23,15 @@ output "db_name" {
   value       = aws_db_instance.postgresql.db_name
 }
 
-# ==================== SECURITY ====================
-
 output "db_security_group_id" {
   description = "Security Group ID of the RDS instance"
   value       = aws_security_group.rds.id
 }
 
-# ==================== MONITORING ====================
-
 output "db_monitoring_role_arn" {
   description = "Enhanced monitoring role ARN"
   value       = aws_iam_role.rds_enhanced_monitoring.arn
 }
-
-# ==================== CONNECTION STRING ====================
 
 output "db_connection_info" {
   description = "Database connection information"
@@ -52,13 +44,11 @@ output "db_connection_info" {
   sensitive = false
 }
 
-# ==================== BACKUP INFO ====================
-
 output "db_backup_info" {
   description = "Database backup configuration"
   value = {
     backup_retention_period = aws_db_instance.postgresql.backup_retention_period
-    backup_window          = aws_db_instance.postgresql.backup_window
-    maintenance_window     = aws_db_instance.postgresql.maintenance_window
+    backup_window           = aws_db_instance.postgresql.backup_window
+    maintenance_window      = aws_db_instance.postgresql.maintenance_window
   }
 }

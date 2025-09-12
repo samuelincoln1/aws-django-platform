@@ -7,22 +7,15 @@ from .models import Item
 
 @csrf_exempt
 def healthz(request):
-    try:
-        # Test connection with database
-        from django.db import connection
-        with connection.cursor() as cursor:
-            cursor.execute("SELECT 1")
-        
+    try:     
         return JsonResponse({
             "status": "healthy",
-            "database": "connected",
             "service": "django-app"
         })
     except Exception as e:
         return JsonResponse({
             "status": "unhealthy", 
             "error": str(e),
-            "database": "disconnected"
         }, status=500)
 
 

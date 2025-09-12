@@ -52,7 +52,7 @@ variable "max_allocated_storage" {
 variable "instance_class" {
   type        = string
   description = "RDS instance class"
-  default     = "db.t3.micro"  # Ideal para desenvolvimento/teste
+  default     = "db.t3.micro" # Ideal para desenvolvimento/teste
 }
 
 variable "engine_version" {
@@ -82,19 +82,19 @@ variable "maintenance_window" {
 variable "multi_az" {
   type        = bool
   description = "Enable Multi-AZ deployment for high availability"
-  default     = false  # Para desenvolvimento, pode ser false
+  default     = false # Para desenvolvimento, pode ser false
 }
 
 variable "deletion_protection" {
   type        = bool
   description = "Enable deletion protection"
-  default     = false  # Para desenvolvimento, pode ser false
+  default     = false  #TROCAR
 }
 
 variable "skip_final_snapshot" {
   type        = bool
   description = "Skip final snapshot when destroying"
-  default     = true   # Para desenvolvimento, pode ser true
+  default     = true #TROCAR TALVEZ
 }
 
 variable "monitoring_interval" {

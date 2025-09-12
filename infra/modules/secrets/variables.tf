@@ -1,4 +1,3 @@
-# Variables for Django secrets
 variable "django_secret_key" {
   description = "Django SECRET_KEY"
   type        = string

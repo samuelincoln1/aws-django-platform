@@ -1,5 +1,3 @@
-# ==================== SECURITY GROUP ====================
-
 resource "aws_security_group" "rds" {
   name_prefix = "rds-postgresql-"
   vpc_id      = var.vpc_id
@@ -7,14 +5,12 @@ resource "aws_security_group" "rds" {
 
   # Allow PostgreSQL access only from ECS tasks
   ingress {
-    description     = "PostgreSQL from ECS Tasks"
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
+    description = "PostgreSQL from ECS Tasks"
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
     cidr_blocks = [var.vpc_cidr_block]
   }
-
-  # No egress rules needed for RDS
 
   tags = {
     Name        = "rds-postgresql-sg-${var.environment}"
@@ -27,8 +23,6 @@ resource "aws_security_group" "rds" {
   }
 }
 
-# ==================== SUBNET GROUP ====================
-
 resource "aws_db_subnet_group" "main" {
   name       = "rds-subnet-group-${var.environment}"
   subnet_ids = var.private_subnet_ids
@@ -39,13 +33,10 @@ resource "aws_db_subnet_group" "main" {
   }
 }
 
-# ==================== PARAMETER GROUP ====================
-
 resource "aws_db_parameter_group" "postgresql" {
   family = "postgres15"
   name   = "postgresql-params-${var.environment}"
 
-  # Otimizações de performance e segurança
   parameter {
     name  = "shared_preload_libraries"
     value = "pg_stat_statements"
@@ -58,7 +49,7 @@ resource "aws_db_parameter_group" "postgresql" {
 
   parameter {
     name  = "log_min_duration_statement"
-    value = "1000"  # Log queries que demoram mais de 1 segundo
+    value = "1000"
   }
 
   parameter {
@@ -77,8 +68,6 @@ resource "aws_db_parameter_group" "postgresql" {
   }
 }
 
-# ==================== OPTION GROUP ====================
-
 resource "aws_db_option_group" "postgresql" {
   name                     = "postgresql-options-${var.environment}"
   option_group_description = "Option group for PostgreSQL"
@@ -90,8 +79,6 @@ resource "aws_db_option_group" "postgresql" {
     Environment = var.environment
   }
 }
-
-# ==================== ENHANCED MONITORING ROLE ====================
 
 resource "aws_iam_role" "rds_enhanced_monitoring" {
   name = "rds-monitoring-role-${var.environment}"
@@ -120,60 +107,49 @@ resource "aws_iam_role_policy_attachment" "rds_enhanced_monitoring" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
 }
 
-# ==================== RDS INSTANCE ====================
-
 resource "aws_db_instance" "postgresql" {
-  # Basic Configuration
   identifier     = "postgresql-${var.environment}"
   engine         = "postgres"
   engine_version = var.engine_version
   instance_class = var.instance_class
 
-  # Database Configuration
   db_name  = var.db_name
   username = var.db_username
   password = var.db_password
 
-  # Storage Configuration
   allocated_storage     = var.allocated_storage
   max_allocated_storage = var.max_allocated_storage
   storage_type          = "gp3"
   storage_encrypted     = true
-  
-  # Network & Security
+
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [aws_security_group.rds.id]
   publicly_accessible    = false
 
-  # Parameter and Option Groups
   parameter_group_name = aws_db_parameter_group.postgresql.name
   option_group_name    = aws_db_option_group.postgresql.name
 
-  # Backup Configuration
-  backup_retention_period = var.backup_retention_period
-  backup_window          = var.backup_window
-  copy_tags_to_snapshot  = true
+  enabled_cloudwatch_logs_exports = ["postgresql"]
+
+  backup_retention_period  = var.backup_retention_period
+  backup_window            = var.backup_window
+  copy_tags_to_snapshot    = true
   delete_automated_backups = true
 
-  # Maintenance
-  maintenance_window        = var.maintenance_window
-  auto_minor_version_upgrade = true
+  maintenance_window          = var.maintenance_window
+  auto_minor_version_upgrade  = true
   allow_major_version_upgrade = false
 
-  # High Availability
   multi_az = var.multi_az
 
-  # Monitoring
   monitoring_interval = var.monitoring_interval
   monitoring_role_arn = var.monitoring_interval > 0 ? aws_iam_role.rds_enhanced_monitoring.arn : null
 
-  # Performance Insights
   performance_insights_enabled          = var.performance_insights_enabled
   performance_insights_retention_period = var.performance_insights_enabled ? var.performance_insights_retention_period : null
 
-  # Deletion Protection
-  deletion_protection = var.deletion_protection
-  skip_final_snapshot = var.skip_final_snapshot
+  deletion_protection       = var.deletion_protection
+  skip_final_snapshot       = var.skip_final_snapshot
   final_snapshot_identifier = var.skip_final_snapshot ? null : "postgresql-${var.environment}-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}"
 
   tags = {
@@ -190,8 +166,6 @@ resource "aws_db_instance" "postgresql" {
     aws_db_option_group.postgresql
   ]
 }
-
-# ==================== CLOUDWATCH LOG GROUPS ====================
 
 resource "aws_cloudwatch_log_group" "postgresql_log" {
   name              = "/aws/rds/instance/postgresql-${var.environment}/postgresql"

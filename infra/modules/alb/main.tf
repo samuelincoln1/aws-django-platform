@@ -52,7 +52,7 @@ resource "aws_lb" "main" {
   }
 }
 
-# Target Group TROCAR ?
+# Target Group
 resource "aws_lb_target_group" "ecs" {
   name        = "ecs-tg-devops-test"
   port        = 8000
@@ -87,6 +87,7 @@ resource "aws_lb_listener" "http" {
   port              = "80"
   protocol          = "HTTP"
 
+#TROCAR
   # If there is no certificate, go directly to the target group
   # If there is a certificate, redirect to HTTPS
   dynamic "default_action" {
