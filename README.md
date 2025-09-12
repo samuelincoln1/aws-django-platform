@@ -4,23 +4,6 @@ AWS Cloud | Terraform Infrastructure | Django 5.0.7 | Docker Containerized | Pos
 
 Enterprise-grade Django application deployed on AWS with complete CI/CD pipeline, advanced security, and global content delivery.
 
-## Table of Contents
-
-- [Overview](#overview)
-- [Architecture](#architecture)
-- [Features](#features)
-- [Technology Stack](#technology-stack)
-- [Infrastructure Components](#infrastructure-components)
-- [Security Features](#security-features)
-- [CI/CD Pipeline](#cicd-pipeline)
-- [Scalability & High Availability](#scalability--high-availability)
-- [Getting Started](#getting-started)
-- [Local Development](#local-development)
-- [Deployment](#deployment)
-- [Monitoring & Logging](#monitoring--logging)
-- [Cost Optimization](#cost-optimization)
-- [Contributing](#contributing)
-
 ## Overview
 
 This project demonstrates enterprise-level DevOps practices by implementing a Django application with complete AWS cloud infrastructure, automated CI/CD pipeline, and advanced security configurations. The application showcases modern cloud-native architecture patterns including containerization, microservices deployment, global content delivery, and infrastructure as code.
