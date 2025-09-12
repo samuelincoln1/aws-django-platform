@@ -78,7 +78,6 @@ variable "django_debug" {
 variable "django_allowed_hosts" {
   type        = string
   description = "Django ALLOWED_HOSTS"
-  default     = "*" 
 }
 
 variable "db_host" {

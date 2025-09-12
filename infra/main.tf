@@ -21,10 +21,14 @@ variable "certificate_arn" {
   type        = string
 }
 
-variable "subdomain_name" {
+variable "subdomain_full_name" {
   description = "Full subdomain name"
   type        = string
-  default     = "app-django.samuellincoln.com"
+}
+
+variable "s3_bucket_name" {
+  description = "Name of the S3 bucket"
+  type        = string
 }
 
 
@@ -66,6 +70,8 @@ module "vpc" {
   private_subnet_rds_cidr_2  = "10.0.6.0/24"
 
   map_public_ip_on_launch = false
+
+  s3_bucket_name = var.s3_bucket_name
 }
 
 module "alb" {
@@ -90,8 +96,9 @@ module "secrets" {
 
 module "s3" {
   source      = "./modules/s3"
-  bucket_name = "samuel-lincoln-django-app-static"
+  bucket_name = var.s3_bucket_name
   aws_region  = "us-east-1"
+  ecs_task_role_arn = module.ecs.ecs_task_role_arn
 }
 
 module "rds" {
@@ -109,7 +116,7 @@ module "rds" {
   instance_class         = "db.t3.micro"
   allocated_storage      = 20
   max_allocated_storage  = 100
-  multi_az              = false
+  multi_az              = true
   deletion_protection   = false
   skip_final_snapshot   = true
   
@@ -134,7 +141,7 @@ module "ecs" {
   container_image       = "${module.ecr.repository_url}:latest"
 
   django_debug          = "False"
-  django_allowed_hosts = "${var.subdomain_name},${module.alb.alb_dns_name},localhost,127.0.0.1"
+  django_allowed_hosts = "${var.subdomain_full_name},${module.alb.alb_dns_name},localhost,127.0.0.1"
   db_host               = module.rds.db_endpoint
   db_port               = module.rds.db_port
   db_name               = module.rds.db_name

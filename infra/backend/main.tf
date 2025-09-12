@@ -11,7 +11,6 @@ provider "aws" {
   region = "us-east-1"
 }
 
-# Bucket S3 para armazenar o estado do Terraform
 resource "aws_s3_bucket" "terraform_state" {
   bucket = "samuellincoln-terraform-state-devops-test"
 
@@ -21,7 +20,6 @@ resource "aws_s3_bucket" "terraform_state" {
   }
 }
 
-# Configuração de versionamento do bucket
 resource "aws_s3_bucket_versioning" "terraform_state_versioning" {
   bucket = aws_s3_bucket.terraform_state.id
   versioning_configuration {
@@ -29,7 +27,6 @@ resource "aws_s3_bucket_versioning" "terraform_state_versioning" {
   }
 }
 
-# Configuração de criptografia do bucket
 resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state_encryption" {
   bucket = aws_s3_bucket.terraform_state.id
 
@@ -40,7 +37,6 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state_e
   }
 }
 
-# Bloqueio de acesso público ao bucket
 resource "aws_s3_bucket_public_access_block" "terraform_state_pab" {
   bucket = aws_s3_bucket.terraform_state.id
 
@@ -50,7 +46,6 @@ resource "aws_s3_bucket_public_access_block" "terraform_state_pab" {
   restrict_public_buckets = true
 }
 
-# Tabela DynamoDB para lock do estado
 resource "aws_dynamodb_table" "terraform_state_lock" {
   name           = "terraform-state-locking-devops-test"
   billing_mode   = "PAY_PER_REQUEST"
@@ -67,7 +62,6 @@ resource "aws_dynamodb_table" "terraform_state_lock" {
   }
 }
 
-# Outputs para referência
 output "s3_bucket_name" {
   description = "Nome do bucket S3 para o estado do Terraform"
   value       = aws_s3_bucket.terraform_state.bucket

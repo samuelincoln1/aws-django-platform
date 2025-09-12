@@ -33,8 +33,8 @@ resource "aws_vpc_endpoint" "s3" {
           "s3:GetBucketLocation"
         ]
         Resource = [
-          "arn:aws:s3:::samuel-lincoln-django-app-static",
-          "arn:aws:s3:::samuel-lincoln-django-app-static/*"
+          "arn:aws:s3:::${var.s3_bucket_name}",
+          "arn:aws:s3:::${var.s3_bucket_name}/*"
         ]
       }
     ]

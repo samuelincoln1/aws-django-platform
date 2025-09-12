@@ -1,15 +1,16 @@
 {% load static %}
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Django app</title>
-    <link rel="stylesheet" href="{% static 'core/styles.css' %}">
+    <link rel="stylesheet" href="{% static 'core/styles.css' %}" />
   </head>
   <body>
     <div class="container">
-      <h1>Items</h1>
+    
+      <h1>Database Table</h1>
 
       <form id="create-form" class="card">
         <label for="name">Create new item</label>
@@ -34,6 +35,40 @@
       </div>
 
       <div id="status" class="status" role="status" aria-live="polite"></div>
+
+        <h1>Django app</h1>
+        <p>Bitbucket repository: <a href="#" class="repo-link">adicionar link</a></p>
+      <p>
+        This Django application provides a simple CRUD (Create, Read, Update,
+        Delete) interface for managing items in a database table. Users can add
+        new items, view all existing items with their creation and modification
+        timestamps, edit items, and delete as needed. The interface
+        displays real-time feedback for all operations performed on the data.
+      </p>
+      <p>
+        This comprehensive Django application showcases enterprise-grade
+        AWS cloud architecture and DevOps best practices. The application
+        connects to a highly available PostgreSQL RDS database configured with
+        Multi-AZ deployment for automatic failover and disaster recovery. The
+        backend runs on a minimum of 4 auto-scaling ECS Fargate containers
+        distributed across two availability zones, ensuring high
+        availability and fault tolerance.
+      </p>
+      <p>
+        Following security best practices, all application components are
+        deployed in private subnets with no direct internet access. Static files
+        (CSS, JavaScript, images) are served efficiently from Amazon S3. The entire infrastructure is provisioned as code
+        using Terraform, featuring secure networking with VPC endpoints, AWS
+        Secrets Manager for credential management, and comprehensive logging
+        with CloudWatch. Traffic is routed through an Application Load Balancer
+        with SSL/TLS termination, automatic HTTP to HTTPS redirection, and
+        custom domain configuration.
+      </p>
+
+      <p> The diagram below shows the architecture of the application:
+        <img src="{% static 'core/diagram.png' %}" alt="Architecture diagram" class="diagram" />
+      </p>
+
     </div>
 
     <script src="{% static 'core/app.js' %}"></script>

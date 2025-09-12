@@ -21,3 +21,22 @@ tbody tr:hover { background: rgba(255,255,255,.03); }
 .status.success { color: #22c55e; }
 .status.error { color: #ef4444; }
 #create-form label { display: block; margin-bottom: 8px; }
+
+.diagram {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 16px 0;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  background: var(--card);
+  padding: 8px;
+}
+
+.repo-link {
+  color: #4f46e5;
+  text-decoration: none;
+}
+
+.repo-link:hover {
+  text-decoration: underline;
+}

@@ -87,9 +87,6 @@ resource "aws_lb_listener" "http" {
   port              = "80"
   protocol          = "HTTP"
 
-#TROCAR
-  # If there is no certificate, go directly to the target group
-  # If there is a certificate, redirect to HTTPS
   dynamic "default_action" {
     for_each = var.certificate_arn != null ? [1] : []
     content {

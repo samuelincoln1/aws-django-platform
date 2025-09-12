@@ -57,3 +57,8 @@ variable "private_subnet_rds_cidr_2" {
   type        = string
   description = "CIDR block for private RDS subnet in AZ2 (standby)"
 }
+
+variable "s3_bucket_name" {
+  type        = string
+  description = "Name of the S3 bucket"
+}

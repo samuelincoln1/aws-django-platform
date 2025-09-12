@@ -8,3 +8,8 @@ variable "aws_region" {
   type        = string
   default     = "us-east-1"
 }
+
+variable "ecs_task_role_arn" {
+  description = "ARN of the ECS task role"
+  type        = string
+}

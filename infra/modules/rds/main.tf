@@ -170,6 +170,9 @@ resource "aws_db_instance" "postgresql" {
 resource "aws_cloudwatch_log_group" "postgresql_log" {
   name              = "/aws/rds/instance/postgresql-${var.environment}/postgresql"
   retention_in_days = 7
+  lifecycle {
+    ignore_changes = [name]
+  }
 
   tags = {
     Name        = "postgresql-logs-${var.environment}"

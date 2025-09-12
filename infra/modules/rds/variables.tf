@@ -82,7 +82,6 @@ variable "maintenance_window" {
 variable "multi_az" {
   type        = bool
   description = "Enable Multi-AZ deployment for high availability"
-  default     = false # Para desenvolvimento, pode ser false
 }
 
 variable "deletion_protection" {

@@ -165,41 +165,6 @@ resource "aws_ecs_task_definition" "django_app" {
         }
       ]
 
-      # environment = [
-      #   {
-      #     name  = "DEBUG"
-      #     value = var.django_debug
-      #   },
-      #   {
-      #     name  = "ALLOWED_HOSTS"
-      #     value = var.django_allowed_hosts
-      #   },
-      #   {
-      #     name  = "DB_HOST"
-      #     value = var.db_host
-      #   },
-      #   {
-      #     name  = "DB_PORT"
-      #     value = var.db_port
-      #   },
-      #   {
-      #     name  = "DB_NAME"
-      #     value = var.db_name
-      #   },
-      #   {
-      #     name  = "USE_S3"
-      #     value = var.use_s3
-      #   },
-      #   {
-      #     name  = "AWS_STORAGE_BUCKET_NAME"
-      #     value = var.aws_storage_bucket_name
-      #   },
-      #   {
-      #     name  = "AWS_REGION"
-      #     value = var.aws_region
-      #   }
-      # ]
-
       environment = [
         {
           name  = "DEBUG"
@@ -207,7 +172,7 @@ resource "aws_ecs_task_definition" "django_app" {
         },
         {
           name  = "ALLOWED_HOSTS"
-          value = "*"
+          value = var.django_allowed_hosts
         },
          {
           name  = "DB_HOST"
@@ -353,7 +318,7 @@ resource "aws_ecs_service" "django_app" {
   }
 
   deployment_minimum_healthy_percent = 50
-  deployment_maximum_percent         = 300
+  deployment_maximum_percent         = 200
   health_check_grace_period_seconds = 60
 
   depends_on = [aws_iam_role_policy_attachment.ecs_task_execution_role_policy]
