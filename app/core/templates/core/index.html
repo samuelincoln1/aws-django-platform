@@ -50,19 +50,30 @@
         AWS cloud architecture and DevOps best practices. The application
         connects to a highly available PostgreSQL RDS database configured with
         Multi-AZ deployment for automatic failover and disaster recovery. The
-        backend runs on a minimum of 4 auto-scaling ECS Fargate containers
+        backend runs on a minimum of 2 auto-scaling ECS Fargate containers (scaling up to 6)
         distributed across two availability zones, ensuring high
-        availability and fault tolerance.
+        availability and fault tolerance with intelligent CPU-based scaling.
       </p>
       <p>
         Following security best practices, all application components are
-        deployed in private subnets with no direct internet access. Static files
-        (CSS, JavaScript, images) are served efficiently from Amazon S3. The entire infrastructure is provisioned as code
-        using Terraform, featuring secure networking with VPC endpoints, AWS
-        Secrets Manager for credential management, and comprehensive logging
-        with CloudWatch. Traffic is routed through an Application Load Balancer
-        with SSL/TLS termination, automatic HTTP to HTTPS redirection, and
-        custom domain configuration.
+        deployed in private subnets with no direct internet access. Static files 
+        (CSS, JavaScript, images) are served globally through Amazon CloudFront CDN 
+        backed by S3 storage, ensuring fast content delivery worldwide. The entire 
+        application is protected by AWS WAF (Web Application Firewall) integrated 
+        with CloudFront, featuring advanced security rules including rate limiting, 
+        SQL injection protection, geographic blocking, and defense against common 
+        web exploits. The infrastructure is provisioned as code using Terraform 
+        with a modular architecture, featuring secure networking with VPC endpoints, 
+        AWS Secrets Manager for credential management, and comprehensive logging 
+        with CloudWatch.
+      </p>
+      <p>
+        The application features a complete CI/CD pipeline powered by AWS CodePipeline
+        integrated with Bitbucket. Every commit to the main branch automatically triggers
+        a build process that creates a new Docker image, pushes it to Amazon ECR, and
+        performs a zero-downtime deployment to the ECS cluster. Traffic is routed through 
+        an Application Load Balancer with SSL/TLS termination, automatic HTTP to HTTPS 
+        redirection, and custom domain configuration, ensuring secure and reliable access.
       </p>
 
       <p> The diagram below shows the architecture of the application:
