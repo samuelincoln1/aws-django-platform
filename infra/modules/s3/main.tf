@@ -7,6 +7,25 @@ resource "aws_s3_bucket" "static_files" {
   }
 }
 
+resource "aws_s3_bucket_server_side_encryption_configuration" "static_files" {
+  bucket = aws_s3_bucket.static_files.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+    bucket_key_enabled = true
+  }
+}
+
+resource "aws_s3_bucket_versioning" "static_files" {
+  bucket = aws_s3_bucket.static_files.id
+  
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
 resource "aws_s3_bucket_public_access_block" "static_files" {
   bucket = aws_s3_bucket.static_files.id
 

@@ -16,6 +16,18 @@ variable "db_password" {
   sensitive   = true
 }
 
+variable "certificate_arn" {
+  description = "ARN of the SSL certificate in AWS Certificate Manager"
+  type        = string
+}
+
+variable "subdomain_name" {
+  description = "Full subdomain name"
+  type        = string
+  default     = "app-django.samuellincoln.com"
+}
+
+
 terraform {
   backend "s3" {
     bucket         = "samuellincoln-terraform-state-devops-test"
@@ -61,8 +73,7 @@ module "alb" {
   vpc_id            = module.vpc.vpc_id
   public_subnet_ids = module.vpc.public_subnet_ids
 
-  # Initially without SSL certificate (only HTTP) TROCAR
-  # certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+  certificate_arn = var.certificate_arn
 }
 
 module "ecr" {
@@ -123,7 +134,7 @@ module "ecs" {
   container_image       = "${module.ecr.repository_url}:latest"
 
   django_debug          = "False"
-  django_allowed_hosts = ".${module.alb.alb_dns_name},localhost,127.0.0.1"
+  django_allowed_hosts = "${var.subdomain_name},${module.alb.alb_dns_name},localhost,127.0.0.1"
   db_host               = module.rds.db_endpoint
   db_port               = module.rds.db_port
   db_name               = module.rds.db_name
@@ -136,7 +147,6 @@ module "ecs" {
   cpu                   = 2048
   memory                = 4096
   secret_arns           = module.secrets.secret_arns
- 
 }
 
 # ==================== OUTPUTS ====================

@@ -30,5 +30,15 @@ output "target_group_name" {
 
 output "alb_url" {
   description = "Full URL to access the application"
+  value       = var.certificate_arn != null ? "https://${aws_lb.main.dns_name}" : "http://${aws_lb.main.dns_name}"
+}
+
+output "alb_url_http" {
+  description = "HTTP URL"
   value       = "http://${aws_lb.main.dns_name}"
+}
+
+output "alb_url_https" {
+  description = "HTTPS URL"
+  value       = var.certificate_arn != null ? "https://${aws_lb.main.dns_name}" : null
 }
