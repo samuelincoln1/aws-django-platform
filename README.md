@@ -68,7 +68,7 @@ The application follows a **multi-tier, highly available architecture** deployed
 ### Compute Resources
 - **ECS Cluster**: django-app-cluster
 - **ECS Service**: django-app-service
-- **Task Definition**: 2048 CPU, 4096 MB Memory
+- **Task Definition**: 1024 CPU, 2048 MB Memory
 - **Auto Scaling**: 2-6 tasks based on CPU utilization (70% target)
 
 ### Database
