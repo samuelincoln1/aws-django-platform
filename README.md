@@ -31,7 +31,6 @@ The application follows a **multi-tier, highly available architecture** deployed
 ### Application Features
 - CRUD Operations - Complete Create, Read, Update, Delete functionality
 - Real-time Feedback - Instant status updates for all operations
-- Responsive Design - Mobile-friendly interface
 - Database Integration - PostgreSQL with timestamps tracking
 
 ### Infrastructure Features
@@ -39,7 +38,6 @@ The application follows a **multi-tier, highly available architecture** deployed
 - High Availability - Multi-AZ deployment across 2 availability zones
 - Global CDN - CloudFront for worldwide content delivery
 - Advanced Security - WAF with multiple protection layers
-- Zero Downtime - Blue-green deployments with ECS
 - Comprehensive Monitoring - CloudWatch logs and metrics
 
 ## Technology Stack
