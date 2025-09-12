@@ -84,7 +84,6 @@ The application follows a **multi-tier, highly available architecture** deployed
 - **Private Subnets** - Application and database in private subnets
 - **Security Groups** - Restrictive ingress/egress rules
 - **VPC Endpoints** - Private communication with AWS services
-- **NAT Gateways** - Secure internet access for private resources
 
 ### Application Security
 - **AWS WAF** - Web Application Firewall with:
