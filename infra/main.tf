@@ -31,6 +31,12 @@ variable "s3_bucket_name" {
   type        = string
 }
 
+variable "bitbucket_repo_name" {
+  description = "Bitbucket repository name"
+  type        = string
+}
+
+data "aws_caller_identity" "current" {}
 
 terraform {
   backend "s3" {
@@ -162,6 +168,28 @@ module "waf" {
   environment = "devops-test"
 }
 
+
+
+module "codepipeline" {
+  source = "./modules/codepipeline"
+
+  project_name     = "django-app"
+  environment      = "devops-test"
+  aws_region       = "us-east-1"
+  aws_account_id   = data.aws_caller_identity.current.account_id
+
+  bitbucket_repo_name = var.bitbucket_repo_name
+  branch_name         = "main"
+
+  ecr_repository_name = module.ecr.repository_name
+  ecr_repository_url  = module.ecr.repository_url
+
+  ecs_cluster_name = "django-app-cluster"
+  ecs_service_name = "django-app-service"
+  
+  ecs_task_execution_role_arn = module.ecs.ecs_task_execution_role_arn
+  ecs_task_role_arn          = module.ecs.ecs_task_role_arn
+}
 
 
 # ==================== OUTPUTS ====================

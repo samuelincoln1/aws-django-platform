@@ -348,8 +348,8 @@ resource "aws_appautoscaling_target" "ecs_target" {
 
 }
 
-resource "aws_appautoscaling_policy" "ecs_scale_up" {
-  name               = "${var.service_name}-scale-up"
+resource "aws_appautoscaling_policy" "ecs_target_tracking" {
+  name               = "${var.service_name}-target-tracking"
   policy_type        = "TargetTrackingScaling"
   resource_id        = aws_appautoscaling_target.ecs_target.resource_id
   scalable_dimension = aws_appautoscaling_target.ecs_target.scalable_dimension
@@ -359,84 +359,12 @@ resource "aws_appautoscaling_policy" "ecs_scale_up" {
     predefined_metric_specification {
       predefined_metric_type = "ECSServiceAverageCPUUtilization"
     }
-    target_value       = var.scale_up_target
+    target_value       = var.scale_target_cpu
     scale_in_cooldown  = var.scale_in_cooldown
     scale_out_cooldown = var.scale_out_cooldown
   }
-
   depends_on = [aws_appautoscaling_target.ecs_target]
 }
-
-resource "aws_appautoscaling_policy" "ecs_scale_down" {
-  name               = "${var.service_name}-scale-down"
-  policy_type        = "StepScaling"
-  resource_id        = aws_appautoscaling_target.ecs_target.resource_id
-  scalable_dimension = aws_appautoscaling_target.ecs_target.scalable_dimension
-  service_namespace  = aws_appautoscaling_target.ecs_target.service_namespace
-
-  step_scaling_policy_configuration {
-    adjustment_type         = "ChangeInCapacity"
-    cooldown               = var.scale_in_cooldown
-    metric_aggregation_type = "Average"
-
-    step_adjustment {
-      metric_interval_upper_bound = 0
-      scaling_adjustment          = -1
-    }
-  }
-
-  depends_on = [aws_appautoscaling_target.ecs_target]
-}
-
-# CloudWatch Alarm - Scale Up
-resource "aws_cloudwatch_metric_alarm" "ecs_cpu_high" {
-  alarm_name          = "${var.service_name}-cpu-high"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = "2"
-  metric_name         = "CPUUtilization"
-  namespace           = "AWS/ECS"
-  period              = "300"
-  statistic           = "Average"
-  threshold           = "70"
-  alarm_description   = "This metric monitors ECS CPU utilization for scale up"
-  alarm_actions       = [aws_appautoscaling_policy.ecs_scale_up.arn]
-
-  dimensions = {
-    ServiceName = aws_ecs_service.django_app.name
-    ClusterName = aws_ecs_cluster.main.name
-  }
-
-  tags = {
-    Name        = "${var.service_name}-cpu-high-alarm"
-    Environment = var.environment
-  }
-}
-
-
-# CloudWatch Alarm - Scale Down
-resource "aws_cloudwatch_metric_alarm" "ecs_cpu_low" {
-  alarm_name          = "${var.service_name}-cpu-low"
-  comparison_operator = "LessThanThreshold"
-  evaluation_periods  = "2"
-  metric_name         = "CPUUtilization"
-  namespace           = "AWS/ECS"
-  period              = "300"
-  statistic           = "Average"
-  threshold           = "30"
-  alarm_description   = "This metric monitors ECS CPU utilization for scale down"
-  alarm_actions       = [aws_appautoscaling_policy.ecs_scale_down.arn]
-
-  dimensions = {
-    ServiceName = aws_ecs_service.django_app.name
-    ClusterName = aws_ecs_cluster.main.name
-  }
-
-  tags = {
-    Name        = "${var.service_name}-cpu-low-alarm"
-    Environment = var.environment
-  }
-}
-
 
 data "aws_prefix_list" "s3" {
   name = "com.amazonaws.us-east-1.s3"

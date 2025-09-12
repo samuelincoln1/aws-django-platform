@@ -133,20 +133,21 @@ variable "max_capacity" {
   default     = 6
 }
 
-variable "scale_up_target" {
-  description = "Target value for scale up"
+variable "scale_target_cpu" {
+  description = "Target CPU utilization percentage for autoscaling"
   type        = number
   default     = 70.0
 }
 
+# Manter estas variáveis
 variable "scale_in_cooldown" {
-  description = "Cooldown for scale in"
+  description = "Cooldown for scale in (seconds)"
   type        = number
   default     = 300
 }
 
 variable "scale_out_cooldown" {
-  description = "Cooldown for scale out"
+  description = "Cooldown for scale out (seconds)"
   type        = number
   default     = 300
 }
