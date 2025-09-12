@@ -126,3 +126,27 @@ variable "s3_bucket_arn" {
   type        = string
   default     = ""
 }
+
+variable "max_capacity" {
+  description = "Maximum number of tasks"
+  type        = number
+  default     = 6
+}
+
+variable "scale_up_target" {
+  description = "Target value for scale up"
+  type        = number
+  default     = 70.0
+}
+
+variable "scale_in_cooldown" {
+  description = "Cooldown for scale in"
+  type        = number
+  default     = 300
+}
+
+variable "scale_out_cooldown" {
+  description = "Cooldown for scale out"
+  type        = number
+  default     = 300
+}

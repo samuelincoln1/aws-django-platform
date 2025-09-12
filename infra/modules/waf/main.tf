@@ -1,4 +1,3 @@
-# WAF Web ACL
 resource "aws_wafv2_web_acl" "django_app" {
   name  = "django-app-waf-${var.environment}"
   scope = "CLOUDFRONT"

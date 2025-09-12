@@ -174,7 +174,7 @@ resource "aws_ecs_task_definition" "django_app" {
           name  = "ALLOWED_HOSTS"
           value = var.django_allowed_hosts
         },
-         {
+        {
           name  = "DB_HOST"
           value = var.db_host
         },
@@ -190,7 +190,7 @@ resource "aws_ecs_task_definition" "django_app" {
           name  = "USE_S3"
           value = var.use_s3
         },
-        
+
         {
           name  = "AWS_STORAGE_BUCKET_NAME"
           value = var.aws_storage_bucket_name
@@ -317,9 +317,13 @@ resource "aws_ecs_service" "django_app" {
     container_port   = 8000
   }
 
+  lifecycle {
+    ignore_changes = [desired_count]
+  }
+
   deployment_minimum_healthy_percent = 50
   deployment_maximum_percent         = 200
-  health_check_grace_period_seconds = 60
+  health_check_grace_period_seconds  = 60
 
   depends_on = [aws_iam_role_policy_attachment.ecs_task_execution_role_policy]
 
@@ -329,7 +333,111 @@ resource "aws_ecs_service" "django_app" {
   }
 }
 
-# Data source para S3 Prefix List - ADICIONAR
+resource "aws_appautoscaling_target" "ecs_target" {
+  service_namespace  = "ecs"
+  resource_id        = "service/${aws_ecs_cluster.main.name}/${var.service_name}"
+  scalable_dimension = "ecs:service:DesiredCount"
+  min_capacity       = var.desired_count
+  max_capacity       = var.max_capacity
+
+  depends_on = [aws_ecs_service.django_app]
+  tags = {
+    Name        = "${var.service_name}-autoscaling-target"
+    Environment = var.environment
+  }
+
+}
+
+resource "aws_appautoscaling_policy" "ecs_scale_up" {
+  name               = "${var.service_name}-scale-up"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.ecs_target.resource_id
+  scalable_dimension = aws_appautoscaling_target.ecs_target.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.ecs_target.service_namespace
+
+  target_tracking_scaling_policy_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageCPUUtilization"
+    }
+    target_value       = var.scale_up_target
+    scale_in_cooldown  = var.scale_in_cooldown
+    scale_out_cooldown = var.scale_out_cooldown
+  }
+
+  depends_on = [aws_appautoscaling_target.ecs_target]
+}
+
+resource "aws_appautoscaling_policy" "ecs_scale_down" {
+  name               = "${var.service_name}-scale-down"
+  policy_type        = "StepScaling"
+  resource_id        = aws_appautoscaling_target.ecs_target.resource_id
+  scalable_dimension = aws_appautoscaling_target.ecs_target.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.ecs_target.service_namespace
+
+  step_scaling_policy_configuration {
+    adjustment_type         = "ChangeInCapacity"
+    cooldown               = var.scale_in_cooldown
+    metric_aggregation_type = "Average"
+
+    step_adjustment {
+      metric_interval_upper_bound = 0
+      scaling_adjustment          = -1
+    }
+  }
+
+  depends_on = [aws_appautoscaling_target.ecs_target]
+}
+
+# CloudWatch Alarm - Scale Up
+resource "aws_cloudwatch_metric_alarm" "ecs_cpu_high" {
+  alarm_name          = "${var.service_name}-cpu-high"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/ECS"
+  period              = "300"
+  statistic           = "Average"
+  threshold           = "70"
+  alarm_description   = "This metric monitors ECS CPU utilization for scale up"
+  alarm_actions       = [aws_appautoscaling_policy.ecs_scale_up.arn]
+
+  dimensions = {
+    ServiceName = aws_ecs_service.django_app.name
+    ClusterName = aws_ecs_cluster.main.name
+  }
+
+  tags = {
+    Name        = "${var.service_name}-cpu-high-alarm"
+    Environment = var.environment
+  }
+}
+
+
+# CloudWatch Alarm - Scale Down
+resource "aws_cloudwatch_metric_alarm" "ecs_cpu_low" {
+  alarm_name          = "${var.service_name}-cpu-low"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/ECS"
+  period              = "300"
+  statistic           = "Average"
+  threshold           = "30"
+  alarm_description   = "This metric monitors ECS CPU utilization for scale down"
+  alarm_actions       = [aws_appautoscaling_policy.ecs_scale_down.arn]
+
+  dimensions = {
+    ServiceName = aws_ecs_service.django_app.name
+    ClusterName = aws_ecs_cluster.main.name
+  }
+
+  tags = {
+    Name        = "${var.service_name}-cpu-low-alarm"
+    Environment = var.environment
+  }
+}
+
+
 data "aws_prefix_list" "s3" {
   name = "com.amazonaws.us-east-1.s3"
 }

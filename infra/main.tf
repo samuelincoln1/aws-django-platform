@@ -151,9 +151,9 @@ module "ecs" {
   s3_bucket_arn           = module.s3.bucket_arn
   aws_region      = "us-east-1"
 
-  desired_count         = 4
-  cpu                   = 2048
-  memory                = 4096
+  desired_count         = 2
+  cpu                   = 1024
+  memory                = 2048
   secret_arns           = module.secrets.secret_arns
 }
 
@@ -161,6 +161,8 @@ module "waf" {
   source = "./modules/waf"
   environment = "devops-test"
 }
+
+
 
 # ==================== OUTPUTS ====================
 
