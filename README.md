@@ -242,25 +242,6 @@ bitbucket_repo_name  = "username/repository"
 - **Load Balancer**: HTTP 200 response check
 - **Container**: Docker health check
 
-## Cost Optimization
-
-### Current Configuration Costs (Estimated Monthly)
-- **ECS Fargate**: ~$50-150 (2-6 tasks)
-- **RDS db.t3.micro**: ~$15
-- **ALB**: ~$20
-- **S3**: ~$5
-- **CloudFront**: ~$10
-- **Other services**: ~$10
-- **Total**: ~$110-210/month
-
-### Cost Optimization Strategies
-- **Right-sizing**: t3.micro RDS instance
-- **Auto Scaling**: Scale down during low usage
-- **Reserved Instances**: Consider for predictable workloads
-- **S3 Lifecycle**: Automatic archiving of old files
-- **CloudWatch**: Log retention policies
-
-
 **Samuel Lincoln**
 - Bitbucket: @samuellincoln
 - LinkedIn: Samuel Lincoln
