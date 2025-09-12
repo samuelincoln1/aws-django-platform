@@ -1,4 +1,3 @@
-# S3 Bucket para artefatos do pipeline
 resource "aws_s3_bucket" "codepipeline_artifacts" {
   bucket = "${var.project_name}-codepipeline-artifacts-${var.environment}"
 
@@ -57,7 +56,6 @@ resource "aws_iam_role" "codepipeline_role" {
   }
 }
 
-# Policy para CodePipeline
 resource "aws_iam_role_policy" "codepipeline_policy" {
   name = "${var.project_name}-codepipeline-policy"
   role = aws_iam_role.codepipeline_role.id
@@ -98,7 +96,6 @@ resource "aws_iam_role_policy" "codepipeline_policy" {
   })
 }
 
-# CodeStar Connection para Bitbucket
 resource "aws_codestarconnections_connection" "bitbucket" {
   name          = "${var.project_name}-bitbucket-connection"
   provider_type = "Bitbucket"
@@ -109,7 +106,6 @@ resource "aws_codestarconnections_connection" "bitbucket" {
   }
 }
 
-# IAM Role para CodeBuild
 resource "aws_iam_role" "codebuild_role" {
   name = "${var.project_name}-codebuild-role-${var.environment}"
 
@@ -132,7 +128,6 @@ resource "aws_iam_role" "codebuild_role" {
   }
 }
 
-# Policy para CodeBuild
 resource "aws_iam_role_policy" "codebuild_policy" {
   name = "${var.project_name}-codebuild-policy"
   role = aws_iam_role.codebuild_role.id
@@ -200,7 +195,6 @@ resource "aws_iam_role_policy" "codebuild_policy" {
   })
 }
 
-# CloudWatch Log Group para CodeBuild
 resource "aws_cloudwatch_log_group" "codebuild_logs" {
   name              = "/aws/codebuild/${var.project_name}-build-${var.environment}"
   retention_in_days = 14
@@ -211,7 +205,6 @@ resource "aws_cloudwatch_log_group" "codebuild_logs" {
   }
 }
 
-# CodeBuild Project
 resource "aws_codebuild_project" "build_project" {
   name         = "${var.project_name}-build-${var.environment}"
   description  = "Build project for ${var.project_name}"
@@ -276,7 +269,6 @@ resource "aws_codebuild_project" "build_project" {
   }
 }
 
-# CodePipeline
 resource "aws_codepipeline" "main_pipeline" {
   name     = "${var.project_name}-pipeline-${var.environment}"
   role_arn = aws_iam_role.codepipeline_role.arn
