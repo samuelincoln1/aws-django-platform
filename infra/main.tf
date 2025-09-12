@@ -156,6 +156,12 @@ module "ecs" {
   secret_arns           = module.secrets.secret_arns
 }
 
+module "waf" {
+  source = "./modules/waf"
+  environment = "devops-test"
+  alb_arn = module.alb.alb_arn
+}
+
 # ==================== OUTPUTS ====================
 
 # VPC Outputs
