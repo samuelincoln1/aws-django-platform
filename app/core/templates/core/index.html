@@ -4,18 +4,17 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Django app</title>
+    <title>Django on ECS</title>
     <link rel="stylesheet" href="{% static 'core/styles.css' %}" />
   </head>
   <body>
     <div class="container">
-    
-      <h1>Database Table</h1>
+      <h1>Items</h1>
 
       <form id="create-form" class="card">
         <label for="name">Create new item</label>
         <div class="row">
-          <input id="name" placeholder="Item name" required />
+          <input id="name" placeholder="Item name" maxlength="200" required />
           <button type="submit">Add</button>
         </div>
       </form>
@@ -36,50 +35,13 @@
 
       <div id="status" class="status" role="status" aria-live="polite"></div>
 
-        <h1>Django app</h1>
-        <p>Bitbucket repository: <a href="https://bitbucket.org/samuellincoln/testedevops/src/main/" class="repo-link">bitbucket.org/samuellincoln/testedevops</a></p>
       <p>
-        This Django application provides a simple CRUD (Create, Read, Update,
-        Delete) interface for managing items in a database table. Users can add
-        new items, view all existing items with their creation and modification
-        timestamps, edit items, and delete as needed. The interface
-        displays real-time feedback for all operations performed on the data.
+        A small CRUD backed by PostgreSQL, used to exercise the infrastructure
+        around it: requests enter through CloudFront and AWS WAF, reach Django
+        on ECS Fargate through an Application Load Balancer, and are stored in
+        a Multi-AZ RDS database. Static files like this page's CSS are served
+        by CloudFront from S3.
       </p>
-      <p>
-        This comprehensive Django application showcases enterprise-grade
-        AWS cloud architecture and DevOps best practices. The application
-        connects to a highly available PostgreSQL RDS database configured with
-        Multi-AZ deployment for automatic failover and disaster recovery. The
-        backend runs on a minimum of 2 auto-scaling ECS Fargate containers (scaling up to 6)
-        distributed across two availability zones, ensuring high
-        availability and fault tolerance with intelligent CPU-based scaling.
-      </p>
-      <p>
-        Following security best practices, all application components are
-        deployed in private subnets with no direct internet access. Static files 
-        (CSS, JavaScript, images) are served globally through Amazon CloudFront CDN 
-        backed by S3 storage, ensuring fast content delivery worldwide. The entire 
-        application is protected by AWS WAF (Web Application Firewall) integrated 
-        with CloudFront, featuring advanced security rules including rate limiting, 
-        SQL injection protection, geographic blocking, and defense against common 
-        web exploits. The infrastructure is provisioned as code using Terraform 
-        with a modular architecture, featuring secure networking with VPC endpoints, 
-        AWS Secrets Manager for credential management, and comprehensive logging 
-        with CloudWatch.
-      </p>
-      <p>
-        The application features a complete CI/CD pipeline powered by AWS CodePipeline
-        integrated with Bitbucket. Every commit to the main branch automatically triggers
-        a build process that creates a new Docker image, pushes it to Amazon ECR, and
-        performs a zero-downtime deployment to the ECS cluster. Traffic is routed through 
-        an Application Load Balancer with SSL/TLS termination, automatic HTTP to HTTPS 
-        redirection, and custom domain configuration, ensuring secure and reliable access.
-      </p>
-
-      <p> The diagram below shows the architecture of the application:
-        <img src="{% static 'core/diagram.png' %}" alt="Architecture diagram" class="diagram" />
-      </p>
-
     </div>
 
     <script src="{% static 'core/app.js' %}"></script>

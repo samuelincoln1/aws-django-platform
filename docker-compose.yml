@@ -1,0 +1,38 @@
+# Local development: PostgreSQL + Django dev server with live reload.
+#   docker compose up
+#   docker compose run --rm app python manage.py test
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: app
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d app"]
+      interval: 2s
+      retries: 15
+
+  app:
+    build: ./app
+    command: sh -c "python manage.py migrate --noinput && python manage.py runserver 0.0.0.0:8000"
+    environment:
+      DEBUG: "true"
+      DB_HOST: db
+      DB_NAME: app
+      DB_USER: app
+      DB_PASSWORD: app
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/app
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

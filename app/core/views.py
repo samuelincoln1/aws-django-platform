@@ -1,62 +1,71 @@
 import json
-from django.http import JsonResponse, HttpResponseNotAllowed
-from django.shortcuts import render, get_object_or_404
-from django.views.decorators.csrf import csrf_exempt
-from django.db import transaction
+import logging
+
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404, render
+from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.http import require_http_methods
+
 from .models import Item
 
-@csrf_exempt
-def healthz(request):
-    try:     
-        return JsonResponse({
-            "status": "healthy",
-            "service": "django-app"
-        })
-    except Exception as e:
-        return JsonResponse({
-            "status": "unhealthy", 
-            "error": str(e),
-        }, status=500)
+logger = logging.getLogger(__name__)
+
+NAME_MAX_LENGTH = Item._meta.get_field("name").max_length
 
 
+def parse_name(request):
+    """Returns (name, error_response) from a JSON body with a "name" field."""
+    try:
+        payload = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return None, JsonResponse({"error": "Invalid JSON"}, status=400)
+
+    name = payload.get("name") if isinstance(payload, dict) else None
+    if not isinstance(name, str) or not name.strip():
+        return None, JsonResponse({"error": "name is required"}, status=400)
+
+    name = name.strip()
+    if len(name) > NAME_MAX_LENGTH:
+        return None, JsonResponse(
+            {"error": f"name must have at most {NAME_MAX_LENGTH} characters"}, status=400
+        )
+    return name, None
+
+
+@ensure_csrf_cookie
 def home(request):
     return render(request, "core/index.html")
 
-@csrf_exempt
+
+@require_http_methods(["GET", "POST"])
 def items_list(request):
     if request.method == "GET":
-        data = [i.as_dict() for i in Item.objects.order_by("-id")]
-        return JsonResponse(data, safe=False)
-    if request.method == "POST":
-        try:
-            payload = json.loads(request.body or "{}")
-            name = payload.get("name")
-            if not name:
-                return JsonResponse({"error": "name é obrigatório"}, status=400)
-            item = Item.objects.create(name=name)
-            return JsonResponse(item.as_dict(), status=201)
-        except json.JSONDecodeError:
-            return JsonResponse({"error": "JSON inválido"}, status=400)
-    return HttpResponseNotAllowed(["GET", "POST"])
+        return JsonResponse([item.as_dict() for item in Item.objects.order_by("-id")], safe=False)
 
-@csrf_exempt
-def item_detail(request, id):
-    item = get_object_or_404(Item, id=id)
+    name, error = parse_name(request)
+    if error:
+        return error
+    item = Item.objects.create(name=name)
+    logger.info("Item %s created", item.pk)
+    return JsonResponse(item.as_dict(), status=201)
+
+
+@require_http_methods(["GET", "PUT", "PATCH", "DELETE"])
+def item_detail(request, pk):
+    item = get_object_or_404(Item, pk=pk)
+
     if request.method == "GET":
         return JsonResponse(item.as_dict())
-    if request.method in ["PUT", "PATCH"]:
-        try:
-            payload = json.loads(request.body or "{}")
-            name = payload.get("name")
-            if name:
-                item.name = name
-                item.save()
-            return JsonResponse(item.as_dict())
-        except json.JSONDecodeError:
-            return JsonResponse({"error": "JSON inválido"}, status=400)
+
     if request.method == "DELETE":
-        with transaction.atomic():
-            item.delete()
-            transaction.on_commit(lambda: print(f"Item {id} deletado e commitado!"))
-        return JsonResponse({"deleted": True}, status=200)
-    return HttpResponseNotAllowed(["GET", "PUT", "PATCH", "DELETE"])
+        item.delete()
+        logger.info("Item %s deleted", pk)
+        return HttpResponse(status=204)
+
+    name, error = parse_name(request)
+    if error:
+        return error
+    item.name = name
+    item.save(update_fields=["name", "updated_at"])
+    logger.info("Item %s updated", pk)
+    return JsonResponse(item.as_dict())

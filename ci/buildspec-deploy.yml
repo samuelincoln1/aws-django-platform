@@ -1,0 +1,7 @@
+# Deploy stage: IMAGE_URI comes from the Build stage (pipeline variable namespace "Build").
+version: 0.2
+
+phases:
+  build:
+    commands:
+      - bash ci/deploy.sh

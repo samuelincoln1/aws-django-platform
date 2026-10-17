@@ -1,0 +1,28 @@
+# Build stage: test the image that will be shipped, then push it to ECR.
+version: 0.2
+
+env:
+  exported-variables:
+    - IMAGE_URI
+
+phases:
+  pre_build:
+    commands:
+      - aws ecr get-login-password --region "$AWS_DEFAULT_REGION" | docker login --username AWS --password-stdin "${ECR_REPOSITORY_URL%%/*}"
+      # Commit SHA + build number: tags are immutable, so re-running a commit needs a new tag
+      - IMAGE_URI="$ECR_REPOSITORY_URL:$(echo "$CODEBUILD_RESOLVED_SOURCE_VERSION" | cut -c 1-7)-$CODEBUILD_BUILD_NUMBER"
+      - echo "Image $IMAGE_URI"
+  build:
+    commands:
+      - docker build -t "$IMAGE_URI" app
+      # Tests and Django's deployment checklist run inside the image itself.
+      # SQLite keeps the build independent from the VPC.
+      - >-
+        docker run --rm
+        -e SECRET_KEY="ci-only-$(head -c 48 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9')"
+        -e DATABASE_URL=sqlite:////tmp/ci.sqlite3
+        -e ALLOWED_HOSTS=example.com
+        "$IMAGE_URI"
+        sh -c "python manage.py test --noinput && python manage.py check --deploy --fail-level WARNING"
+      # Pushed here and not in post_build: post_build also runs when the build phase fails
+      - docker push "$IMAGE_URI"

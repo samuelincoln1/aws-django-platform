@@ -1,141 +1,130 @@
-# ECS Cluster
+locals {
+  container_name = "django"
+}
+
 resource "aws_ecs_cluster" "main" {
-  name = var.cluster_name
+  name = var.name
 
   setting {
     name  = "containerInsights"
     value = "enabled"
   }
+}
 
-  tags = {
-    Name        = var.cluster_name
-    Environment = var.environment
+resource "aws_cloudwatch_log_group" "app" {
+  name              = "/ecs/${var.name}"
+  retention_in_days = var.log_retention_days
+}
+
+# ==================== IAM ====================
+
+data "aws_iam_policy_document" "ecs_tasks_assume" {
+  statement {
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["ecs-tasks.amazonaws.com"]
+    }
   }
 }
 
-# CloudWatch Log Group
-resource "aws_cloudwatch_log_group" "django_app" {
-  name              = "/ecs/${var.service_name}"
-  retention_in_days = 30
-
-  tags = {
-    Name        = "${var.service_name}-logs"
-    Environment = var.environment
-  }
+# Used by the ECS agent: pull the image, write logs, read secrets
+resource "aws_iam_role" "execution" {
+  name               = "${var.name}-task-execution"
+  assume_role_policy = data.aws_iam_policy_document.ecs_tasks_assume.json
 }
 
-# ECS Task Execution Role
-resource "aws_iam_role" "ecs_task_execution_role" {
-  name = "${var.service_name}-execution-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "ecs-tasks.amazonaws.com"
-        }
-      }
-    ]
-  })
-
-  tags = {
-    Name        = "${var.service_name}-execution-role"
-    Environment = var.environment
-  }
-}
-
-# Attach policy to execution role
-resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy" {
-  role       = aws_iam_role.ecs_task_execution_role.name
+resource "aws_iam_role_policy_attachment" "execution" {
+  role       = aws_iam_role.execution.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-resource "aws_iam_role_policy" "ecs_secrets_policy" {
-  name = "${var.service_name}-secrets-policy"
-  role = aws_iam_role.ecs_task_execution_role.id
+resource "aws_iam_role_policy" "execution_secrets" {
+  name = "read-app-secrets"
+  role = aws_iam_role.execution.id
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Effect = "Allow"
-        Action = [
-          "secretsmanager:GetSecretValue"
-        ]
-        Resource = [
-          "arn:aws:secretsmanager:us-east-1:*:secret:django-app/*"
-        ]
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = var.secret_arns
       }
     ]
   })
 }
 
-# Security Group for ECS Tasks
-resource "aws_security_group" "ecs_tasks" {
-  name_prefix = "${var.service_name}-tasks-"
-  vpc_id      = var.vpc_id
-  description = "Security group for ECS tasks"
+# Used by the application code: upload static files to S3
+resource "aws_iam_role" "task" {
+  name               = "${var.name}-task"
+  assume_role_policy = data.aws_iam_policy_document.ecs_tasks_assume.json
+}
 
-  # Allow traffic from ALB on port 8000
+resource "aws_iam_role_policy" "task_static_files" {
+  name = "static-files"
+  role = aws_iam_role.task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["s3:ListBucket"]
+        Resource = var.static_bucket_arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+        Resource = "${var.static_bucket_arn}/*"
+      }
+    ]
+  })
+}
+
+# ==================== Networking ====================
+
+# DNS needs no rule: traffic to the VPC resolver is not filtered by security groups.
+resource "aws_security_group" "tasks" {
+  name_prefix = "${var.name}-tasks-"
+  vpc_id      = var.vpc_id
+  description = "ECS tasks"
+
   ingress {
-    description     = "HTTP from ALB"
-    from_port       = 8000
-    to_port         = 8000
+    description     = "Application port from the ALB"
+    from_port       = var.container_port
+    to_port         = var.container_port
     protocol        = "tcp"
     security_groups = [var.alb_security_group_id]
   }
 
-  # HTTPS to VPC Endpoints (ECR, CloudWatch, etc)
   egress {
-    description     = "HTTPS to VPC Endpoints"
+    description     = "HTTPS to the interface VPC endpoints"
     from_port       = 443
     to_port         = 443
     protocol        = "tcp"
     security_groups = [var.vpc_endpoints_security_group_id]
   }
 
-  # HTTP to VPC Endpoints
   egress {
-    description     = "HTTP to VPC Endpoints"
-    from_port       = 80
-    to_port         = 80
-    protocol        = "tcp"
-    security_groups = [var.vpc_endpoints_security_group_id]
-  }
-
-  # HTTPS to S3 via Prefix List
-  egress {
-    description     = "HTTPS to S3 via Prefix List"
+    description     = "HTTPS to S3 through the gateway endpoint"
     from_port       = 443
     to_port         = 443
     protocol        = "tcp"
-    prefix_list_ids = [data.aws_prefix_list.s3.id]
+    prefix_list_ids = [var.s3_prefix_list_id]
   }
 
-  # Allow outbound traffic to RDS
   egress {
-    description = "PostgreSQL to RDS"
+    description = "PostgreSQL"
     from_port   = 5432
     to_port     = 5432
     protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr_block]
-  }
-
-  # Allow outbound traffic to DNS
-  egress {
-    description = "DNS resolution"
-    from_port   = 53
-    to_port     = 53
-    protocol    = "udp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = var.db_subnet_cidrs
   }
 
   tags = {
-    Name        = "${var.service_name}-tasks-sg"
-    Environment = var.environment
+    Name = "${var.name}-tasks"
   }
 
   lifecycle {
@@ -143,229 +132,126 @@ resource "aws_security_group" "ecs_tasks" {
   }
 }
 
-# ECS Task Definition
-resource "aws_ecs_task_definition" "django_app" {
-  family                   = var.service_name
+# ==================== Task Definition ====================
+
+# The pipeline registers new revisions of this family with the image of each
+# commit. Terraform owns everything else (env vars, CPU, memory, roles): a
+# change here creates a new revision that the next pipeline run builds upon.
+resource "aws_ecs_task_definition" "app" {
+  family                   = var.name
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
   cpu                      = var.cpu
   memory                   = var.memory
-  execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
-  task_role_arn            = aws_iam_role.ecs_task_role.arn
+  execution_role_arn       = aws_iam_role.execution.arn
+  task_role_arn            = aws_iam_role.task.arn
+
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = "X86_64"
+  }
 
   container_definitions = jsonencode([
     {
-      name  = "django-app"
-      image = var.container_image
+      name      = local.container_name
+      image     = var.container_image
+      essential = true
 
       portMappings = [
         {
-          containerPort = 8000
+          containerPort = var.container_port
           protocol      = "tcp"
         }
       ]
 
-      environment = [
-        {
-          name  = "DEBUG"
-          value = "False"
-        },
-        {
-          name  = "ALLOWED_HOSTS"
-          value = var.django_allowed_hosts
-        },
-        {
-          name  = "DB_HOST"
-          value = var.db_host
-        },
-        {
-          name  = "DB_PORT"
-          value = var.db_port
-        },
-        {
-          name  = "DB_NAME"
-          value = var.db_name
-        },
-        {
-          name  = "USE_S3"
-          value = var.use_s3
-        },
-
-        {
-          name  = "AWS_STORAGE_BUCKET_NAME"
-          value = var.aws_storage_bucket_name
-        },
-        {
-          name  = "AWS_REGION"
-          value = var.aws_region
-        }
-      ]
-
-      secrets = [
-        {
-          name      = "SECRET_KEY"
-          valueFrom = var.secret_arns.secret_key
-        },
-        {
-          name      = "DB_USER"
-          valueFrom = "${var.secret_arns.db_credentials}:username::"
-        },
-        {
-          name      = "DB_PASSWORD"
-          valueFrom = "${var.secret_arns.db_credentials}:password::"
-        }
-      ]
+      environment = [for k, v in var.environment : { name = k, value = v }]
+      secrets     = [for k, v in var.secrets : { name = k, valueFrom = v }]
 
       logConfiguration = {
         logDriver = "awslogs"
         options = {
-          "awslogs-group"         = aws_cloudwatch_log_group.django_app.name
-          "awslogs-region"        = "us-east-1"
-          "awslogs-stream-prefix" = "ecs"
+          "awslogs-group"         = aws_cloudwatch_log_group.app.name
+          "awslogs-region"        = var.region
+          "awslogs-stream-prefix" = "app"
         }
       }
 
-      essential = true
-
       healthCheck = {
-        command = [
-          "CMD-SHELL",
-          "curl -f http://localhost:8000/healthz/ || exit 1"
-        ]
+        command     = ["CMD-SHELL", "curl -fs http://localhost:${var.container_port}/healthz/ || exit 1"]
         interval    = 30
-        timeout     = 10
-        retries     = 5
-        startPeriod = 120
+        timeout     = 5
+        retries     = 3
+        startPeriod = 30
       }
     }
   ])
-
-  tags = {
-    Name        = "${var.service_name}-task-definition"
-    Environment = var.environment
-  }
 }
 
-# ECS Task Role (para a aplicação acessar S3)
-resource "aws_iam_role" "ecs_task_role" {
-  name = "${var.service_name}-task-role"
+# ==================== Service ====================
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "ecs-tasks.amazonaws.com"
-        }
-      }
-    ]
-  })
-
-  tags = {
-    Name        = "${var.service_name}-task-role"
-    Environment = var.environment
-  }
-}
-
-# S3 IAM Role Policy
-resource "aws_iam_role_policy" "ecs_task_s3_policy" {
-  name = "${var.service_name}-s3-policy"
-  role = aws_iam_role.ecs_task_role.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:ListBucket"
-        ]
-        Resource = "arn:aws:s3:::${var.aws_storage_bucket_name}"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:GetObject",
-          "s3:PutObject",
-          "s3:DeleteObject",
-          "s3:HeadObject"
-        ]
-        Resource = "arn:aws:s3:::${var.aws_storage_bucket_name}/*"
-      }
-    ]
-  })
-}
-
-# ECS Service
-resource "aws_ecs_service" "django_app" {
-  name            = var.service_name
+resource "aws_ecs_service" "app" {
+  name            = var.name
   cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.django_app.arn
-  desired_count   = var.desired_count
+  task_definition = aws_ecs_task_definition.app.arn
+  desired_count   = var.min_capacity
   launch_type     = "FARGATE"
+  propagate_tags  = "SERVICE"
 
   network_configuration {
-    subnets         = var.private_subnet_ids
-    security_groups = [aws_security_group.ecs_tasks.id]
+    subnets          = var.subnet_ids
+    security_groups  = [aws_security_group.tasks.id]
+    assign_public_ip = false
   }
 
   load_balancer {
-    target_group_arn = var.alb_target_group_arn
-    container_name   = "django-app"
-    container_port   = 8000
+    target_group_arn = var.target_group_arn
+    container_name   = local.container_name
+    container_port   = var.container_port
   }
 
-  lifecycle {
-    ignore_changes = [desired_count]
-  }
-
-  deployment_minimum_healthy_percent = 50
+  # Rolling update that never drops below the current capacity
+  deployment_minimum_healthy_percent = 100
   deployment_maximum_percent         = 200
   health_check_grace_period_seconds  = 60
 
-  depends_on = [aws_iam_role_policy_attachment.ecs_task_execution_role_policy]
-
-  tags = {
-    Name        = var.service_name
-    Environment = var.environment
+  # Failed deployment (tasks not becoming healthy) rolls back automatically
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
   }
+
+  lifecycle {
+    # desired_count is owned by autoscaling, task_definition by the pipeline
+    ignore_changes = [desired_count, task_definition]
+  }
+
+  depends_on = [aws_iam_role_policy_attachment.execution]
 }
 
-resource "aws_appautoscaling_target" "ecs_target" {
+# ==================== Autoscaling ====================
+
+resource "aws_appautoscaling_target" "app" {
   service_namespace  = "ecs"
-  resource_id        = "service/${aws_ecs_cluster.main.name}/${var.service_name}"
+  resource_id        = "service/${aws_ecs_cluster.main.name}/${aws_ecs_service.app.name}"
   scalable_dimension = "ecs:service:DesiredCount"
-  min_capacity       = var.desired_count
+  min_capacity       = var.min_capacity
   max_capacity       = var.max_capacity
-
-  depends_on = [aws_ecs_service.django_app]
-  tags = {
-    Name        = "${var.service_name}-autoscaling-target"
-    Environment = var.environment
-  }
-
 }
 
-resource "aws_appautoscaling_policy" "ecs_target_tracking" {
-  name               = "${var.service_name}-target-tracking"
+resource "aws_appautoscaling_policy" "cpu" {
+  name               = "${var.name}-cpu-target-tracking"
   policy_type        = "TargetTrackingScaling"
-  resource_id        = aws_appautoscaling_target.ecs_target.resource_id
-  scalable_dimension = aws_appautoscaling_target.ecs_target.scalable_dimension
-  service_namespace  = aws_appautoscaling_target.ecs_target.service_namespace
+  resource_id        = aws_appautoscaling_target.app.resource_id
+  scalable_dimension = aws_appautoscaling_target.app.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.app.service_namespace
 
   target_tracking_scaling_policy_configuration {
     predefined_metric_specification {
       predefined_metric_type = "ECSServiceAverageCPUUtilization"
     }
-    target_value       = var.scale_target_cpu
-    scale_in_cooldown  = var.scale_in_cooldown
-    scale_out_cooldown = var.scale_out_cooldown
-  }
-  depends_on = [aws_appautoscaling_target.ecs_target]
-}
 
-data "aws_prefix_list" "s3" {
-  name = "com.amazonaws.us-east-1.s3"
+    target_value       = var.scale_target_cpu
+    scale_out_cooldown = 60
+    scale_in_cooldown  = 300
+  }
 }

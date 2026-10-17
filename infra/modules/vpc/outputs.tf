@@ -1,69 +1,44 @@
-# VPC
 output "vpc_id" {
-  description = "ID da VPC"
+  description = "ID of the VPC"
   value       = aws_vpc.main.id
 }
 
 output "vpc_cidr_block" {
-  description = "CIDR block da VPC"
+  description = "CIDR block of the VPC"
   value       = aws_vpc.main.cidr_block
 }
 
-# Public Subnets
 output "public_subnet_ids" {
-  description = "IDs das subnets públicas"
-  value       = [aws_subnet.public_az1.id, aws_subnet.public_az2.id]
+  description = "Public subnets (ALB)"
+  value       = aws_subnet.public[*].id
 }
 
-output "public_subnet_az1_id" {
-  description = "ID da subnet pública AZ1"
-  value       = aws_subnet.public_az1.id
+output "app_subnet_ids" {
+  description = "Private subnets for the ECS tasks"
+  value       = aws_subnet.app[*].id
 }
 
-output "public_subnet_az2_id" {
-  description = "ID da subnet pública AZ2"
-  value       = aws_subnet.public_az2.id
+output "app_subnet_cidrs" {
+  description = "CIDR blocks of the app subnets"
+  value       = aws_subnet.app[*].cidr_block
 }
 
-# Private ECS Subnets
-output "private_ecs_subnet_ids" {
-  description = "IDs das subnets privadas para ECS"
-  value       = [aws_subnet.private_ecs_az1.id, aws_subnet.private_ecs_az2.id]
+output "db_subnet_ids" {
+  description = "Private subnets for RDS"
+  value       = aws_subnet.db[*].id
 }
 
-output "private_ecs_subnet_az1_id" {
-  description = "ID da subnet privada ECS AZ1"
-  value       = aws_subnet.private_ecs_az1.id
-}
-
-output "private_ecs_subnet_az2_id" {
-  description = "ID da subnet privada ECS AZ2"
-  value       = aws_subnet.private_ecs_az2.id
-}
-
-# Private RDS Subnets
-output "private_rds_subnet_ids" {
-  description = "IDs das subnets privadas para RDS"
-  value       = [aws_subnet.private_rds_az1.id, aws_subnet.private_rds_az2.id]
-}
-
-output "private_rds_subnet_az1_id" {
-  description = "ID da subnet privada RDS AZ1 (primary)"
-  value       = aws_subnet.private_rds_az1.id
-}
-
-output "private_rds_subnet_az2_id" {
-  description = "ID da subnet privada RDS AZ2 (standby)"
-  value       = aws_subnet.private_rds_az2.id
-}
-
-# Internet Gateway
-output "internet_gateway_id" {
-  description = "ID do Internet Gateway"
-  value       = aws_internet_gateway.main.id
+output "db_subnet_cidrs" {
+  description = "CIDR blocks of the database subnets"
+  value       = aws_subnet.db[*].cidr_block
 }
 
 output "vpc_endpoints_security_group_id" {
-  description = "ID of the security group of the VPC endpoints"
+  description = "Security group of the interface VPC endpoints"
   value       = aws_security_group.vpc_endpoints.id
+}
+
+output "s3_prefix_list_id" {
+  description = "Prefix list of the S3 gateway endpoint, for security group egress rules"
+  value       = aws_vpc_endpoint.s3.prefix_list_id
 }

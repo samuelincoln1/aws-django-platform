@@ -15,18 +15,48 @@ function formatDateTime(iso) {
   }
 }
 
-function rowHtml(item) {
-  return `
-    <tr data-id="${item.id}">
-      <td class="item-name">${item.name}</td>
-      <td>${formatDateTime(item.created_at)}</td>
-      <td>${formatDateTime(item.updated_at)}</td>
-      <td>
-        <button class="btn btn-secondary btn-edit">Edit</button>
-        <button class="btn btn-danger btn-delete">Delete</button>
-      </td>
-    </tr>
-  `;
+// Django sets the csrftoken cookie on the home page (ensure_csrf_cookie)
+function csrfToken() {
+  const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : '';
+}
+
+function jsonHeaders() {
+  return { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() };
+}
+
+function cell(text, className) {
+  const td = document.createElement('td');
+  if (className) td.className = className;
+  td.textContent = text;
+  return td;
+}
+
+function button(label, className) {
+  const btn = document.createElement('button');
+  btn.className = `btn ${className}`;
+  btn.textContent = label;
+  return btn;
+}
+
+// Built with textContent (not innerHTML) so item names can never inject markup
+function buildRow(item) {
+  const tr = document.createElement('tr');
+  tr.dataset.id = item.id;
+  const actions = document.createElement('td');
+  actions.append(button('Edit', 'btn-secondary btn-edit'), button('Delete', 'btn-danger btn-delete'));
+  tr.append(
+    cell(item.name, 'item-name'),
+    cell(formatDateTime(item.created_at)),
+    cell(formatDateTime(item.updated_at)),
+    actions
+  );
+  return tr;
+}
+
+async function errorMessage(res, fallback) {
+  const body = await res.json().catch(() => ({}));
+  return body.error || fallback;
 }
 
 async function fetchItems() {
@@ -39,8 +69,7 @@ async function fetchItems() {
       return;
     }
     const data = await res.json();
-    const tbody = document.getElementById('items-body');
-    tbody.innerHTML = data.map(rowHtml).join('');
+    document.getElementById('items-body').replaceChildren(...data.map(buildRow));
     setStatus('');
   } catch (err) {
     console.error('Error fetching items:', err);
@@ -49,52 +78,36 @@ async function fetchItems() {
 }
 
 async function createItem(name) {
-  try {
-    const res = await fetch(`${apiBase}/api/items/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name })
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Failed to create item');
-    }
-    const json = await res.json();
-    return json;
-  } catch (err) {
-    console.error('Error creating item:', err);
-    throw err;
+  const res = await fetch(`${apiBase}/api/items/`, {
+    method: 'POST',
+    headers: jsonHeaders(),
+    body: JSON.stringify({ name })
+  });
+  if (!res.ok) {
+    throw new Error(await errorMessage(res, 'Failed to create item'));
   }
+  return res.json();
 }
 
 async function updateItem(id, name) {
-  try {
-    const res = await fetch(`${apiBase}/api/items/${id}/`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name })
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Failed to update item');
-    }
-    const json = await res.json();
-    return json;
-  } catch (err) {
-    console.error('Error updating item:', err);
-    throw err;
+  const res = await fetch(`${apiBase}/api/items/${id}/`, {
+    method: 'PATCH',
+    headers: jsonHeaders(),
+    body: JSON.stringify({ name })
+  });
+  if (!res.ok) {
+    throw new Error(await errorMessage(res, 'Failed to update item'));
   }
+  return res.json();
 }
 
 async function deleteItem(id) {
-  try {
-    const res = await fetch(`${apiBase}/api/items/${id}/`, { method: 'DELETE' });
-    if (!res.ok && res.status !== 204) {
-      throw new Error('Failed to delete item');
-    }
-  } catch (err) {
-    console.error('Error deleting item:', err);
-    throw err;
+  const res = await fetch(`${apiBase}/api/items/${id}/`, {
+    method: 'DELETE',
+    headers: { 'X-CSRFToken': csrfToken() }
+  });
+  if (!res.ok) {
+    throw new Error('Failed to delete item');
   }
 }
 
@@ -104,10 +117,10 @@ function onTableClick(e) {
   if (!editBtn && !deleteBtn) return;
 
   const tr = e.target.closest('tr');
-  const id = tr.getAttribute('data-id');
-  const nameCell = tr.querySelector('.item-name');
+  const id = tr.dataset.id;
+
   if (editBtn) {
-    const current = nameCell.textContent.trim();
+    const current = tr.querySelector('.item-name').textContent.trim();
     const next = prompt('New item name:', current);
     if (next && next !== current) {
       setStatus('Updating item...');
@@ -118,14 +131,12 @@ function onTableClick(e) {
     }
   }
 
-  if (deleteBtn) {
-    if (confirm('Are you sure you want to delete this item?')) {
-      setStatus('Deleting item...');
-      deleteItem(id)
-        .then(() => fetchItems())
-        .then(() => setStatus('Item deleted', 'success'))
-        .catch(err => setStatus(err.message, 'error'));
-    }
+  if (deleteBtn && confirm('Are you sure you want to delete this item?')) {
+    setStatus('Deleting item...');
+    deleteItem(id)
+      .then(() => fetchItems())
+      .then(() => setStatus('Item deleted', 'success'))
+      .catch(err => setStatus(err.message, 'error'));
   }
 }
 

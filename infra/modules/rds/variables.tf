@@ -1,115 +1,77 @@
-variable "environment" {
+variable "name" {
   type        = string
-  description = "Environment name"
-  default     = "devops-test"
+  description = "Prefix for resource names (also the DB instance identifier)"
 }
 
 variable "vpc_id" {
   type        = string
-  description = "VPC ID where RDS will be deployed"
+  description = "VPC where the database is deployed"
 }
 
-variable "private_subnet_ids" {
+variable "subnet_ids" {
   type        = list(string)
-  description = "Private subnet IDs for RDS (must be in different AZs)"
+  description = "Private subnets in at least two AZs"
 }
 
-variable "vpc_cidr_block" {
-  type        = string
-  description = "VPC CIDR block for database access"
+variable "allowed_security_group_ids" {
+  type        = list(string)
+  description = "Security groups allowed to connect on port 5432"
 }
 
 variable "db_name" {
   type        = string
-  description = "Database name"
-  default     = "app"
+  description = "Name of the database created on the instance"
 }
 
-variable "db_username" {
+variable "username" {
   type        = string
-  description = "Database master username"
-  default     = "app"
+  description = "Master username"
 }
 
-variable "db_password" {
+variable "password" {
   type        = string
-  description = "Database master password"
+  description = "Master password (write-only, not stored in state)"
   sensitive   = true
+  ephemeral   = true
 }
 
-variable "allocated_storage" {
+variable "password_version" {
   type        = number
-  description = "Initial allocated storage in GB"
-  default     = 20
+  description = "Increment to apply a new password"
 }
 
-variable "max_allocated_storage" {
-  type        = number
-  description = "Maximum allocated storage for autoscaling in GB"
-  default     = 100
+variable "engine_version" {
+  type        = string
+  description = "PostgreSQL version. A major version (\"17\") picks the default minor"
+  default     = "17"
 }
 
 variable "instance_class" {
   type        = string
   description = "RDS instance class"
-  default     = "db.t3.micro" # Ideal para desenvolvimento/teste
+  default     = "db.t3.micro"
 }
 
-variable "engine_version" {
-  type        = string
-  description = "PostgreSQL engine version"
-  default     = "15.7"
-}
-
-variable "backup_retention_period" {
+variable "allocated_storage" {
   type        = number
-  description = "Number of days to retain backups"
-  default     = 7
+  description = "Initial storage in GB"
+  default     = 20
 }
 
-variable "backup_window" {
-  type        = string
-  description = "Preferred backup window"
-  default     = "03:00-04:00"
-}
-
-variable "maintenance_window" {
-  type        = string
-  description = "Preferred maintenance window"
-  default     = "sun:04:00-sun:05:00"
+variable "max_allocated_storage" {
+  type        = number
+  description = "Storage autoscaling ceiling in GB"
+  default     = 100
 }
 
 variable "multi_az" {
   type        = bool
-  description = "Enable Multi-AZ deployment for high availability"
+  description = "Synchronous standby in a second AZ with automatic failover"
+  default     = true
 }
 
 variable "deletion_protection" {
   type        = bool
-  description = "Enable deletion protection"
-  default     = false  #TROCAR
-}
-
-variable "skip_final_snapshot" {
-  type        = bool
-  description = "Skip final snapshot when destroying"
-  default     = true #TROCAR TALVEZ
-}
-
-variable "monitoring_interval" {
-  type        = number
-  description = "Enhanced monitoring interval in seconds (0 to disable)"
-  default     = 60
-}
-
-variable "performance_insights_enabled" {
-  type        = bool
-  description = "Enable Performance Insights"
+  description = "Block deletion of the instance. Set to false before `terraform destroy`"
   default     = true
 }
-
-variable "performance_insights_retention_period" {
-  type        = number
-  description = "Performance Insights retention period in days"
-  default     = 7
-} 

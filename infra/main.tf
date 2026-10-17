@@ -1,268 +1,170 @@
-variable "django_secret_key" {
-  description = "Django SECRET_KEY"
-  type        = string
-  sensitive   = true
-}
+locals {
+  name = "${var.project_name}-${var.environment}"
 
-variable "db_user" {
-  description = "Database user"
-  type        = string
-  default     = "app"
-}
-
-variable "db_password" {
-  description = "Database password"
-  type        = string
-  sensitive   = true
-}
-
-variable "certificate_arn" {
-  description = "ARN of the SSL certificate in AWS Certificate Manager"
-  type        = string
-}
-
-variable "subdomain_full_name" {
-  description = "Full subdomain name"
-  type        = string
-}
-
-variable "s3_bucket_name" {
-  description = "Name of the S3 bucket"
-  type        = string
-}
-
-variable "bitbucket_repo_name" {
-  description = "Bitbucket repository name"
-  type        = string
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
 }
 
 data "aws_caller_identity" "current" {}
 
-terraform {
-  backend "s3" {
-    bucket         = "samuellincoln-terraform-state-devops-test"
-    key            = "terraform.tfstate"
-    region         = "us-east-1"
-    dynamodb_table = "terraform-state-locking-devops-test"
-    encrypt        = true
-  }
-
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-  }
-}
-
-provider "aws" {
-  region = "us-east-1"
+# Shared secret that CloudFront adds to every origin request. The ALB only
+# forwards requests carrying it, so the load balancer cannot be reached directly.
+resource "random_password" "origin_verify" {
+  length  = 32
+  special = false
 }
 
 module "vpc" {
-  source               = "./modules/vpc"
-  cidr_block           = "10.0.0.0/16"
-  enable_dns_hostnames = true
-  enable_dns_support   = true
+  source = "./modules/vpc"
 
-  availability_zone_1        = "us-east-1a"
-  public_subnet_cidr_block_1 = "10.0.1.0/24"
-  private_subnet_ecs_cidr_1  = "10.0.3.0/24"
-  private_subnet_rds_cidr_1  = "10.0.5.0/24"
-
-  availability_zone_2        = "us-east-1b"
-  public_subnet_cidr_block_2 = "10.0.2.0/24"
-  private_subnet_ecs_cidr_2  = "10.0.4.0/24"
-  private_subnet_rds_cidr_2  = "10.0.6.0/24"
-
-  map_public_ip_on_launch = false
-
-  s3_bucket_name = var.s3_bucket_name
+  name               = local.name
+  region             = var.aws_region
+  cidr_block         = var.vpc_cidr
+  availability_zones = var.availability_zones
+  static_bucket_name = var.static_bucket_name
 }
 
 module "alb" {
   source = "./modules/alb"
-  vpc_id            = module.vpc.vpc_id
-  public_subnet_ids = module.vpc.public_subnet_ids
 
-  certificate_arn = var.certificate_arn
+  name                       = local.name
+  vpc_id                     = module.vpc.vpc_id
+  public_subnet_ids          = module.vpc.public_subnet_ids
+  app_subnet_cidrs           = module.vpc.app_subnet_cidrs
+  certificate_arn            = var.alb_certificate_arn
+  origin_verify_header_value = random_password.origin_verify.result
+}
+
+module "waf" {
+  source = "./modules/waf"
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  name = local.name
+}
+
+module "static" {
+  source = "./modules/s3"
+
+  bucket_name = var.static_bucket_name
+}
+
+module "cdn" {
+  source = "./modules/cdn"
+
+  name                       = local.name
+  domain_name                = var.domain_name
+  certificate_arn            = var.cloudfront_certificate_arn
+  route53_zone_id            = var.route53_zone_id
+  web_acl_arn                = module.waf.web_acl_arn
+  alb_dns_name               = module.alb.alb_dns_name
+  origin_verify_header_value = random_password.origin_verify.result
+
+  static_bucket_id                   = module.static.bucket_id
+  static_bucket_arn                  = module.static.bucket_arn
+  static_bucket_regional_domain_name = module.static.bucket_regional_domain_name
 }
 
 module "ecr" {
   source = "./modules/ecr"
+
+  name = local.name
 }
 
 module "secrets" {
   source = "./modules/secrets"
 
+  name              = local.name
   django_secret_key = var.django_secret_key
-  db_user          = var.db_user
-  db_password      = var.db_password
-}
-
-module "s3" {
-  source      = "./modules/s3"
-  bucket_name = var.s3_bucket_name
-  aws_region  = "us-east-1"
-  ecs_task_role_arn = module.ecs.ecs_task_role_arn
-  web_acl_id = module.waf.web_acl_arn 
+  db_username       = var.db_username
+  db_password       = var.db_password
+  secrets_version   = var.secrets_version
 }
 
 module "rds" {
   source = "./modules/rds"
 
-  environment = "devops-test"
-  vpc_id      = module.vpc.vpc_id
-  private_subnet_ids = module.vpc.private_rds_subnet_ids
-  vpc_cidr_block = module.vpc.vpc_cidr_block
-  
-  db_name     = "app"
-  db_username = var.db_user
-  db_password = var.db_password
-  
-  instance_class         = "db.t3.micro"
-  allocated_storage      = 20
-  max_allocated_storage  = 100
-  multi_az              = true
-  deletion_protection   = false
-  skip_final_snapshot   = true
-  
-  monitoring_interval                   = 60
-  performance_insights_enabled          = true
-  performance_insights_retention_period = 7
+  name                       = local.name
+  vpc_id                     = module.vpc.vpc_id
+  subnet_ids                 = module.vpc.db_subnet_ids
+  allowed_security_group_ids = [module.ecs.tasks_security_group_id]
+
+  db_name          = "app"
+  username         = var.db_username
+  password         = var.db_password
+  password_version = var.secrets_version
+  instance_class   = var.db_instance_class
+  multi_az         = var.db_multi_az
 }
 
 module "ecs" {
   source = "./modules/ecs"
 
-  cluster_name          = "django-app-cluster"
-  service_name          = "django-app-service"
-  environment           = "devops-test"
-  
-  vpc_id                = module.vpc.vpc_id
-  vpc_cidr_block        = module.vpc.vpc_cidr_block
-  private_subnet_ids    = module.vpc.private_ecs_subnet_ids
-  alb_target_group_arn  = module.alb.target_group_arn
-  alb_security_group_id = module.alb.alb_security_group_id
-  vpc_endpoints_security_group_id = module.vpc.vpc_endpoints_security_group_id 
-  container_image       = "${module.ecr.repository_url}:latest"
+  name   = local.name
+  region = var.aws_region
 
-  django_debug          = "False"
-  django_allowed_hosts = "${var.subdomain_full_name},${module.alb.alb_dns_name},localhost,127.0.0.1"
-  db_host               = module.rds.db_endpoint
-  db_port               = module.rds.db_port
-  db_name               = module.rds.db_name
-  use_s3                = "true"
-  aws_storage_bucket_name = module.s3.bucket_name
-  s3_bucket_arn           = module.s3.bucket_arn
-  aws_region      = "us-east-1"
+  vpc_id                          = module.vpc.vpc_id
+  subnet_ids                      = module.vpc.app_subnet_ids
+  db_subnet_cidrs                 = module.vpc.db_subnet_cidrs
+  vpc_endpoints_security_group_id = module.vpc.vpc_endpoints_security_group_id
+  s3_prefix_list_id               = module.vpc.s3_prefix_list_id
+  alb_security_group_id           = module.alb.security_group_id
+  target_group_arn                = module.alb.target_group_arn
 
-  desired_count         = 2
-  cpu                   = 1024
-  memory                = 2048
-  secret_arns           = module.secrets.secret_arns
-}
+  # Only used for the very first deployment: the pipeline registers a new
+  # task definition revision with the commit-tagged image on every release.
+  container_image = "${module.ecr.repository_url}:bootstrap"
+  cpu             = var.task_cpu
+  memory          = var.task_memory
+  min_capacity    = var.min_tasks
+  max_capacity    = var.max_tasks
 
-module "waf" {
-  source = "./modules/waf"
-  environment = "devops-test"
-}
+  static_bucket_arn = module.static.bucket_arn
 
-
-
-module "codepipeline" {
-  source = "./modules/codepipeline"
-
-  project_name     = "django-app"
-  environment      = "devops-test"
-  aws_region       = "us-east-1"
-  aws_account_id   = data.aws_caller_identity.current.account_id
-
-  bitbucket_repo_name = var.bitbucket_repo_name
-  branch_name         = "main"
-
-  ecr_repository_name = module.ecr.repository_name
-  ecr_repository_url  = module.ecr.repository_url
-
-  ecs_cluster_name = "django-app-cluster"
-  ecs_service_name = "django-app-service"
-  
-  ecs_task_execution_role_arn = module.ecs.ecs_task_execution_role_arn
-  ecs_task_role_arn          = module.ecs.ecs_task_role_arn
-}
-
-
-# ==================== OUTPUTS ====================
-
-# VPC Outputs
-output "vpc_info" {
-  description = "Information of the created VPC"
-  value = {
-    vpc_id     = module.vpc.vpc_id
-    cidr_block = module.vpc.vpc_cidr_block
+  environment = {
+    DEBUG                   = "false"
+    ALLOWED_HOSTS           = var.domain_name
+    CSRF_TRUSTED_ORIGINS    = "https://${var.domain_name}"
+    DB_HOST                 = module.rds.address
+    DB_PORT                 = tostring(module.rds.port)
+    DB_NAME                 = module.rds.db_name
+    USE_S3                  = "true"
+    AWS_STORAGE_BUCKET_NAME = module.static.bucket_id
+    AWS_REGION              = var.aws_region
+    STATIC_CUSTOM_DOMAIN    = var.domain_name
   }
-}
 
-output "public_subnets" {
-  description = "Public subnets for ALB"
-  value = {
-    subnet_ids = module.vpc.public_subnet_ids
-    az1_id     = module.vpc.public_subnet_az1_id
-    az2_id     = module.vpc.public_subnet_az2_id
+  secrets = {
+    SECRET_KEY  = module.secrets.django_secret_key_arn
+    DB_USER     = "${module.secrets.db_credentials_arn}:username::"
+    DB_PASSWORD = "${module.secrets.db_credentials_arn}:password::"
   }
+  secret_arns = [module.secrets.django_secret_key_arn, module.secrets.db_credentials_arn]
 }
 
-output "private_ecs_subnets" {
-  description = "Private subnets for ECS Fargate"
-  value = {
-    subnet_ids = module.vpc.private_ecs_subnet_ids
-    az1_id     = module.vpc.private_ecs_subnet_az1_id
-    az2_id     = module.vpc.private_ecs_subnet_az2_id
-  }
-}
+module "pipeline" {
+  source = "./modules/pipeline"
 
-output "private_rds_subnets" {
-  description = "Private subnets for RDS"
-  value = {
-    subnet_ids = module.vpc.private_rds_subnet_ids
-    primary_id = module.vpc.private_rds_subnet_az1_id
-    standby_id = module.vpc.private_rds_subnet_az2_id
-  }
-}
+  name       = local.name
+  region     = var.aws_region
+  account_id = data.aws_caller_identity.current.account_id
 
-# ALB Outputs
-output "alb_info" {
-  description = "Information of the Application Load Balancer"
-  value = {
-    dns_name         = module.alb.alb_dns_name
-    url              = module.alb.alb_url
-    target_group_arn = module.alb.target_group_arn
-  }
-}
+  repository_provider = var.repository_provider
+  repository_id       = var.repository_id
+  branch_name         = var.branch_name
 
-# ECR Outputs
-output "ecr_info" {
-  description = "Informações do ECR"
-  value = {
-    repository_url  = module.ecr.repository_url
-    repository_name = module.ecr.repository_name
-    registry_id     = module.ecr.registry_id
-  }
-}
+  ecr_repository_url = module.ecr.repository_url
+  ecr_repository_arn = module.ecr.repository_arn
 
-# RDS OUTPUTS
-output "rds_info" {
-  description = "RDS PostgreSQL database information"
-  value = {
-    endpoint    = module.rds.db_endpoint
-    port        = module.rds.db_port
-    database    = module.rds.db_name
-    instance_id = module.rds.db_instance_id
-  }
-}
-
-output "rds_connection_info" {
-  description = "Database connection details for application"
-  value       = module.rds.db_connection_info
-  sensitive   = false
+  ecs_cluster_name       = module.ecs.cluster_name
+  ecs_service_name       = module.ecs.service_name
+  task_definition_family = module.ecs.task_definition_family
+  container_name         = module.ecs.container_name
+  task_subnet_ids        = module.vpc.app_subnet_ids
+  task_security_group_id = module.ecs.tasks_security_group_id
+  task_role_arns         = [module.ecs.task_role_arn, module.ecs.execution_role_arn]
 }

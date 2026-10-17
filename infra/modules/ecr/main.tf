@@ -1,30 +1,28 @@
-#ECR Repository
-resource "aws_ecr_repository" "django_app" {
-    name = "django-app"
-    image_tag_mutability = "MUTABLE"
-    image_scanning_configuration {
-        scan_on_push = true
-    }
-    tags = {
-        Name = "django-app-ecr"
-        Environment = "devops-test"
-    }
+resource "aws_ecr_repository" "app" {
+  name = var.name
+
+  # Images are tagged <commit SHA>-<build number> and never overwritten,
+  # so every task definition revision points to a fixed image.
+  image_tag_mutability = "IMMUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
 }
 
-#ECR Lifecycle Policy
-resource "aws_ecr_lifecycle_policy" "django_app" {
-  repository = aws_ecr_repository.django_app.name
+resource "aws_ecr_lifecycle_policy" "app" {
+  repository = aws_ecr_repository.app.name
 
   policy = jsonencode({
     rules = [
       {
         rulePriority = 1
-        description  = "Keep last 10 images"
+        description  = "Delete untagged images after 1 day"
         selection = {
-          tagStatus     = "tagged"
-          tagPrefixList = ["v"]
-          countType     = "imageCountMoreThan"
-          countNumber   = 10
+          tagStatus   = "untagged"
+          countType   = "sinceImagePushed"
+          countUnit   = "days"
+          countNumber = 1
         }
         action = {
           type = "expire"
@@ -32,12 +30,11 @@ resource "aws_ecr_lifecycle_policy" "django_app" {
       },
       {
         rulePriority = 2
-        description  = "Delete untagged images older than 1 day"
+        description  = "Keep the last ${var.images_to_keep} images (rollback window)"
         selection = {
-          tagStatus   = "untagged"
-          countType   = "sinceImagePushed"
-          countUnit   = "days"
-          countNumber = 1
+          tagStatus   = "any"
+          countType   = "imageCountMoreThan"
+          countNumber = var.images_to_keep
         }
         action = {
           type = "expire"

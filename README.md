@@ -1,248 +1,192 @@
-# AWS Django App
+# AWS Django Platform
 
-AWS Cloud | Terraform Infrastructure | Django 5.0.7 | Docker Containerized | PostgreSQL Database
+Production-style infrastructure for a containerized Django application on AWS,
+written in Terraform: ECS Fargate in private subnets, RDS PostgreSQL Multi-AZ,
+CloudFront + AWS WAF as the only entry point, and a CodePipeline that tests,
+migrates and deploys every commit.
 
-Enterprise-grade Django application deployed on AWS with complete CI/CD pipeline, advanced security, and global content delivery.
+The application itself is intentionally small (a CRUD of items). The focus of
+the project is the infrastructure and the release process around it.
 
-## Overview
-
-This project demonstrates enterprise-level DevOps practices by implementing a Django application with complete AWS cloud infrastructure, automated CI/CD pipeline, and advanced security configurations. The application showcases modern cloud-native architecture patterns including containerization, microservices deployment, global content delivery, and infrastructure as code.
-
-**Live Application**: https://app-django.samuellincoln.com
-
-**Repository**: https://bitbucket.org/samuellincoln/testedevops
+> The environment is not kept running, to avoid its ~$208/month cost — see the
+> [cost analysis](docs/cost-analysis.md).
 
 ## Architecture
 
-![Architecture Diagram](app/core/static/core/diagram.png)
+```mermaid
+flowchart LR
+    user([User]) -->|HTTPS| cf["CloudFront<br/>+ AWS WAF"]
+    cf -->|"/static/*"| s3[("S3<br/>static files")]
+    cf -->|"HTTPS + secret header"| alb["Application<br/>Load Balancer"]
 
-### Architecture Overview
+    subgraph vpc["VPC — 2 availability zones"]
+        alb --> ecs["ECS Fargate<br/>2–6 tasks"]
+        ecs --> rds[("RDS PostgreSQL<br/>Multi-AZ")]
+        ecs -.-> vpce["VPC endpoints"]
+    end
 
-The application follows a **multi-tier, highly available architecture** deployed across multiple AWS availability zones:
+    vpce -.-> aws["ECR · CloudWatch Logs<br/>Secrets Manager · S3"]
+```
 
-- **Presentation Layer**: CloudFront CDN + WAF
-- **Application Layer**: ECS Fargate containers behind ALB
-- **Data Layer**: Multi-AZ RDS PostgreSQL
-- **Storage Layer**: S3 for static files
-- **Security Layer**: WAF, Secrets Manager, VPC with private subnets
+| Layer | Subnets | Notes |
+|---|---|---|
+| Edge | — | CloudFront with WAF; static files from S3, everything else to the ALB |
+| Load balancer | Public | Accepts HTTPS only from CloudFront's IP ranges, and forwards only requests carrying the CloudFront secret header |
+| Application | Private (no internet route) | ECS Fargate, CPU target-tracking autoscaling from 2 to 6 tasks |
+| Database | Private (no internet route) | RDS PostgreSQL 17, Multi-AZ, encrypted, reachable only from the tasks' security group |
 
-## Features
+Network layout:
 
-### Application Features
-- CRUD Operations - Complete Create, Read, Update, Delete functionality
-- Real-time Feedback - Instant status updates for all operations
-- Database Integration - PostgreSQL with timestamps tracking
+![Network diagram](docs/architecture.png)
 
-### Infrastructure Features
-- Auto Scaling - Intelligent CPU-based scaling (2-6 containers)
-- High Availability - Multi-AZ deployment across 2 availability zones
-- Global CDN - CloudFront for worldwide content delivery
-- Advanced Security - WAF with multiple protection layers
-- Comprehensive Monitoring - CloudWatch logs and metrics
+## Design decisions
 
-## Technology Stack
+### CloudFront and WAF are the only way in
 
-### Backend
-- **Django 5.0.7** - Python web framework
-- **PostgreSQL 15** - Primary database
-- **Gunicorn** - WSGI HTTP Server
-- **Python 3.12** - Runtime environment
+The ALB has a public DNS name, so blocking direct access takes two layers:
 
-### Infrastructure
-- **AWS ECS Fargate** - Container orchestration
-- **AWS RDS** - Managed database service
-- **AWS S3** - Object storage
-- **AWS CloudFront** - Content Delivery Network
-- **AWS ALB** - Application Load Balancer
-- **AWS WAF** - Web Application Firewall
+1. Its security group only allows the AWS-managed prefix list of CloudFront
+   origin-facing IPs.
+2. Its HTTPS listener returns `403` by default and only forwards requests with
+   a secret `X-Origin-Verify` header that CloudFront adds. This stops someone
+   from pointing their own CloudFront distribution at the ALB.
 
-### DevOps & Tools
-- **Terraform** - Infrastructure as Code
-- **Docker** - Containerization
-- **AWS CodePipeline** - CI/CD automation
-- **AWS CodeBuild** - Build service
-- **Bitbucket** - Source code management
+As a result, every request to the application goes through AWS WAF (AWS
+managed rule groups for common exploits, known bad inputs and SQL injection,
+2,000 requests per IP per 5 minutes, and geo blocking).
 
-## Infrastructure Components
+### Private subnets without NAT gateways
 
-### Compute Resources
-- **ECS Cluster**: django-app-cluster
-- **ECS Service**: django-app-service
-- **Task Definition**: 1024 CPU, 2048 MB Memory
-- **Auto Scaling**: 2-6 tasks based on CPU utilization (70% target)
+The tasks only need to talk to AWS services, so the private subnets have no
+route to the internet. ECR, CloudWatch Logs and Secrets Manager are reached
+through interface endpoints, and S3 through a free gateway endpoint whose
+policy only allows the application bucket and the ECR layer bucket. The cost is
+close to two NAT gateways, but the containers cannot reach arbitrary hosts —
+see the [comparison](docs/cost-analysis.md#design-decision-vpc-endpoints-instead-of-nat-gateways).
 
-### Database
-- **Engine**: PostgreSQL 15
-- **Instance**: db.t3.micro
-- **Storage**: 20GB (auto-scaling to 100GB)
-- **Backup**: Automated with 7-day retention
-- **Monitoring**: Performance Insights enabled
+### Immutable releases, migrations before rollout
 
-## Security Features
+- Images are tagged with the commit SHA (plus build number) in an ECR
+  repository with immutable tags.
+- Each release registers a new task definition revision, so rolling back means
+  pointing the service at a previous revision.
+- Migrations and `collectstatic` run **once**, as a one-off ECS task, before
+  the service is updated — not in the container entrypoint, where several tasks
+  starting at the same time would race.
+- The rolling update keeps 100% of the capacity healthy, and the ECS
+  deployment circuit breaker rolls back automatically if the new tasks fail
+  their health checks.
 
-### Network Security
-- **Private Subnets** - Application and database in private subnets
-- **Security Groups** - Restrictive ingress/egress rules
-- **VPC Endpoints** - Private communication with AWS services
+### Secrets never reach the Terraform state
 
-### Application Security
-- **AWS WAF** - Web Application Firewall with:
-  - Rate limiting (2000 requests/minute per IP)
-  - SQL injection protection
-  - Geographic blocking (China, Russia, North Korea)
-  - Common attack pattern detection
-- **SSL/TLS** - End-to-end encryption
-- **Secrets Manager** - Secure credential storage
-- **IAM Roles** - Least privilege access
+The Django `SECRET_KEY` and the database password are
+[ephemeral variables](https://developer.hashicorp.com/terraform/language/values/variables#exclude-values-from-state)
+sent through write-only arguments (`secret_string_wo`, `password_wo`). ECS
+injects them into the container from Secrets Manager at startup. The execution
+role can read only these two secrets.
 
-### Data Security
-- **Encryption at Rest** - RDS and S3 encryption
-- **Encryption in Transit** - HTTPS/TLS everywhere
-- **Database Security** - Private subnet, restricted access
-- **Backup Encryption** - Automated encrypted backups
+### Static files on the application's own domain
 
-## CI/CD Pipeline
+`collectstatic` uploads files with content-hashed names to S3. CloudFront
+serves them at `/static/*` on the same domain as the application, so there is
+no CORS and no stale cache after a release. The bucket is private and readable
+only by the distribution (Origin Access Control).
 
-### Pipeline Stages
-Source (Bitbucket) -> Build (CodeBuild) -> Deploy (ECS)
+## CI/CD
 
-### Automated Process
-1. **Trigger**: Commit to main branch
-2. **Source**: Download code from Bitbucket
-3. **Build**: 
-   - Docker image build
-   - Push to ECR with commit hash tag
-   - Update latest tag
-4. **Deploy**: 
-   - Update ECS service
-   - Zero-downtime rolling deployment
+```mermaid
+flowchart LR
+    src["Source<br/>GitHub / Bitbucket / GitLab"] --> build["Build<br/>tests + check --deploy<br/>push image :sha"]
+    build --> deploy["Deploy<br/>new task definition<br/>migrate + collectstatic<br/>rolling update"]
+```
 
-### Build Specifications
-- **Environment**: Amazon Linux 2
-- **Runtime**: Docker-in-Docker
-- **Build Time**: ~5-8 minutes
-- **Artifacts**: Container images in ECR
+| Stage | What happens | Defined in |
+|---|---|---|
+| Source | Commit on `main` through an AWS CodeConnections connection | [`infra/modules/pipeline`](infra/modules/pipeline/main.tf) |
+| Build | Builds the image, runs the test suite and `manage.py check --deploy` **inside the image that will ship**, pushes it to ECR | [`ci/buildspec-build.yml`](ci/buildspec-build.yml) |
+| Deploy | Registers a task definition revision with the new image, runs migrations as a one-off task, updates the service and waits for the rollout to complete or fail | [`ci/deploy.sh`](ci/deploy.sh) |
 
-## Scalability & High Availability
+The pipeline runs in `QUEUED` mode, so a release is never superseded in the
+middle of its migrations.
 
-### Auto Scaling Configuration
-- **Metric**: CPU Utilization
-- **Target**: 70% average CPU
-- **Scale Out**: Add tasks when CPU > 70%
-- **Scale In**: Remove tasks when CPU < 63%
-- **Cooldown**: 5 minutes between scaling actions
+## Repository layout
 
-### High Availability Features
-- **Multi-AZ Deployment** - Resources across 2 availability zones
-- **Load Balancing** - ALB distributes traffic across healthy tasks
-- **Health Checks** - Application and infrastructure level
-- **Auto Recovery** - Automatic task replacement on failure
-- **Database Failover** - RDS Multi-AZ automatic failover
+```
+app/                    Django application (Dockerfile, settings, tests)
+ci/                     Buildspecs and the deploy script used by CodeBuild
+docs/                   Architecture diagram and cost analysis
+infra/
+  bootstrap/            S3 bucket for the Terraform state (applied once)
+  modules/
+    vpc/                Subnets in N AZs, route tables, VPC endpoints
+    alb/                Load balancer restricted to CloudFront
+    cdn/                CloudFront distribution, OAC, optional Route 53 record
+    waf/                Web ACL (us-east-1, CLOUDFRONT scope)
+    s3/                 Static files bucket
+    ecr/                Image repository and lifecycle policy
+    ecs/                Cluster, task definition, service, autoscaling, IAM
+    rds/                PostgreSQL, parameter group, monitoring
+    secrets/            Secrets Manager secrets
+    pipeline/           CodePipeline, CodeBuild projects, IAM
+docker-compose.yml      Local development (Django + PostgreSQL)
+```
 
-## Getting Started
+## Running locally
 
-### Prerequisites
-- AWS CLI configured
-- Terraform >= 1.0
-- Docker
-- Git
-
-### Quick Deploy
 ```bash
-# Clone repository
-git clone https://bitbucket.org/samuellincoln/testedevops.git
-cd testedevops
+docker compose up
+# http://localhost:8000
 
-# Configure infrastructure
-cd infra
-cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars with your values
+docker compose run --rm app python manage.py test
+```
 
-# Deploy infrastructure
+Without Docker, copy `app/.env.example` to `app/.env` (it can point to SQLite
+with `DATABASE_URL=sqlite:///db.sqlite3`), install `app/requirements.txt` in a
+virtualenv and run `python manage.py migrate && python manage.py runserver`.
+
+## Deploying
+
+Requirements: Terraform ≥ 1.11, AWS CLI, a domain name and an ACM certificate
+for it in `us-east-1` (CloudFront only accepts certificates from that region).
+
+```bash
+# 1. State bucket (once)
+cd infra/bootstrap
 terraform init
-terraform plan
+terraform apply -var state_bucket_name=<unique-bucket-name>
+
+# 2. Configuration
+cd ..
+cp backend.hcl.example backend.hcl                # state bucket and key
+cp terraform.tfvars.example terraform.tfvars      # domain, certificates, repository
+export TF_VAR_django_secret_key="$(python3 -c 'import secrets; print(secrets.token_urlsafe(50))')"
+export TF_VAR_db_password="$(openssl rand -base64 24 | tr -d '/@" ')"
+
+# 3. Infrastructure
+terraform init -backend-config=backend.hcl
 terraform apply
-
-# Build and push initial image
-aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin YOUR_ACCOUNT.dkr.ecr.us-east-1.amazonaws.com
-cd ../app
-docker build -t django-app .
-docker tag django-app:latest YOUR_ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/django-app:latest
-docker push YOUR_ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/django-app:latest
 ```
 
-## Local Development
+Then:
 
-### Setup Local Environment
-```bash
-# Create virtual environment
-cd app
-python -m venv .venv
-source .venv/bin/activate  # Linux/Mac
-# .venv\Scripts\activate   # Windows
+1. Approve the source connection in the AWS console (*Developer Tools →
+   Settings → Connections*) — the `source_connection_arn` output. Connections
+   are created in a pending state and the first pipeline run fails until this
+   is done; use *Release change* afterwards.
+2. If `route53_zone_id` was not set, point the domain to the
+   `cloudfront_domain_name` output.
 
-# Install dependencies
-pip install -r requirements.txt
+Until the first release finishes, the ECS service has no image to run and its
+tasks fail to start; this is expected.
 
-# Setup environment variables
-cp .env.example .env
-# Edit .env with local database settings
+To tear everything down, set `deletion_protection = false` in
+[`infra/modules/rds`](infra/modules/rds/variables.tf) and apply before
+`terraform destroy`. A final snapshot of the database is kept.
 
-# Run migrations
-python manage.py migrate
+## Author
 
-# Start development server
-python manage.py runserver
-```
+**Samuel Lincoln** — Cloud & DevOps Engineer
 
-### Local Database Setup
-```bash
-# Using Docker for local PostgreSQL
-docker run -d \
-  --name postgres-dev \
-  -e POSTGRES_DB=app \
-  -e POSTGRES_USER=app \
-  -e POSTGRES_PASSWORD=password \
-  -p 5432:5432 \
-  postgres:15
-```
-
-## Deployment
-
-
-### Environment Configuration
-```hcl
-# terraform.tfvars
-django_secret_key     = "your-secret-key"
-db_password          = "your-db-password"
-certificate_arn      = "your-ssl-certificate-arn"
-subdomain_full_name  = "your-domain.com"
-s3_bucket_name       = "your-bucket-name"
-bitbucket_repo_name  = "username/repository"
-```
-
-## Monitoring & Logging
-
-### CloudWatch Log Groups
-- `/ecs/django-app-service` - Application logs
-- `/aws/codebuild/django-app-build` - Build logs
-- `/aws/rds/instance/postgresql` - Database logs
-
-### Metrics & Alarms
-- **ECS Service**: CPU, Memory, Task count
-- **ALB**: Request count, Response time, Error rate
-- **RDS**: CPU, Connections, Storage
-- **Auto Scaling**: Scaling activities
-
-### Health Checks
-- **Application**: `/healthz/` endpoint
-- **Load Balancer**: HTTP 200 response check
-- **Container**: Docker health check
-
-**Samuel Lincoln**
-- Bitbucket: @samuellincoln
-- LinkedIn: https://www.linkedin.com/in/samuel-gomes-213429209/
-
----
-
-**Note**: This project was created as a technical demonstration of enterprise-level DevOps practices and AWS cloud architecture. It showcases advanced concepts including infrastructure as code, containerization, CI/CD automation, and security best practices.
+- Portfolio: [samuellincoln.com](https://samuellincoln.com)
+- LinkedIn: [samuel-lincoln-213429209](https://www.linkedin.com/in/samuel-lincoln-213429209/)
+- GitHub: [@samuelincoln1](https://github.com/samuelincoln1)

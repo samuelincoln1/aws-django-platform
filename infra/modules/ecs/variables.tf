@@ -1,19 +1,11 @@
-variable "cluster_name" {
+variable "name" {
   type        = string
-  description = "ECS cluster name"
-  default     = "django-app-cluster"
+  description = "Prefix for resource names (cluster, service and task family)"
 }
 
-variable "service_name" {
+variable "region" {
   type        = string
-  description = "ECS service name"
-  default     = "django-app-service"
-}
-
-variable "environment" {
-  type        = string
-  description = "Environment name"
-  default     = "devops-test"
+  description = "AWS region (for the awslogs driver)"
 }
 
 variable "vpc_id" {
@@ -21,133 +13,95 @@ variable "vpc_id" {
   description = "VPC ID"
 }
 
-variable "vpc_cidr_block" {
-  type        = string
-  description = "VPC CIDR block"
-}
-
-variable "private_subnet_ids" {
+variable "subnet_ids" {
   type        = list(string)
-  description = "Private subnets for ECS"
+  description = "Private subnets for the tasks"
 }
 
-variable "alb_target_group_arn" {
-  type        = string
-  description = "ARN of the target group of the ALB"
-}
-
-variable "alb_security_group_id" {
-  type        = string
-  description = "ID of the security group of the ALB"
-}
-
-variable "container_image" {
-  type        = string
-  description = "URI of the Docker image in ECR"
-}
-
-variable "desired_count" {
-  type        = number
-  description = "Desired number of tasks"
-  default     = 6
-}
-
-variable "cpu" {
-  type        = number
-  description = "CPU for each task (in units)"
-  default     = 512
-}
-
-variable "memory" {
-  type        = number
-  description = "Memory for each task (in MB)"
-  default     = 1024
+variable "db_subnet_cidrs" {
+  type        = list(string)
+  description = "CIDR blocks of the database subnets"
 }
 
 variable "vpc_endpoints_security_group_id" {
   type        = string
-  description = "ID of the security group of the VPC endpoints"
+  description = "Security group of the interface VPC endpoints"
 }
 
-variable "django_debug" {
+variable "s3_prefix_list_id" {
   type        = string
-  description = "Django DEBUG setting"
-  default     = "False"
+  description = "Prefix list of the S3 gateway endpoint"
 }
 
-variable "django_allowed_hosts" {
+variable "alb_security_group_id" {
   type        = string
-  description = "Django ALLOWED_HOSTS"
+  description = "Security group of the ALB"
 }
 
-variable "db_host" {
+variable "target_group_arn" {
   type        = string
-  description = "Database host"
-  default     = "localhost"
+  description = "ALB target group of the service"
 }
 
-variable "db_port" {
+variable "container_image" {
   type        = string
+  description = "Image of the first task definition revision"
 }
 
-variable "db_name" {
-  type        = string
-  description = "Database name"
-  default     = "app"
+variable "container_port" {
+  type        = number
+  description = "Port gunicorn listens on"
+  default     = 8000
 }
 
-variable "use_s3" { 
-  type        = string
-  description = "Whether to use S3 for static files"
-  default     = "false"
+variable "cpu" {
+  type        = number
+  description = "CPU units per task"
 }
 
-variable "aws_storage_bucket_name" {
-  type        = string
-  description = "S3 bucket name for static files"
+variable "memory" {
+  type        = number
+  description = "Memory (MiB) per task"
 }
 
-variable "aws_region" {
-  type        = string
-  description = "AWS region"
-  default     = "us-east-1"
-}
-
-variable "secret_arns" {
-  description = "ARNs of secrets from Secrets Manager"
-  type = object({
-    secret_key     = string
-    db_credentials = string
-  })
-}
-
-variable "s3_bucket_arn" {
-  description = "ARN of the S3 bucket for static files"
-  type        = string
-  default     = ""
+variable "min_capacity" {
+  type        = number
+  description = "Minimum number of tasks"
 }
 
 variable "max_capacity" {
-  description = "Maximum number of tasks"
   type        = number
-  default     = 6
+  description = "Maximum number of tasks"
 }
 
 variable "scale_target_cpu" {
-  description = "Target CPU utilization percentage for autoscaling"
   type        = number
-  default     = 70.0
+  description = "Average CPU utilization (%) the autoscaling policy keeps"
+  default     = 70
 }
 
-# Manter estas variáveis
-variable "scale_in_cooldown" {
-  description = "Cooldown for scale in (seconds)"
-  type        = number
-  default     = 300
+variable "environment" {
+  type        = map(string)
+  description = "Plain environment variables of the container"
 }
 
-variable "scale_out_cooldown" {
-  description = "Cooldown for scale out (seconds)"
+variable "secrets" {
+  type        = map(string)
+  description = "Environment variables injected from Secrets Manager (name => valueFrom)"
+}
+
+variable "secret_arns" {
+  type        = list(string)
+  description = "Secrets the execution role may read"
+}
+
+variable "static_bucket_arn" {
+  type        = string
+  description = "Bucket that receives the static files"
+}
+
+variable "log_retention_days" {
   type        = number
-  default     = 300
+  description = "Retention of the application logs"
+  default     = 30
 }
