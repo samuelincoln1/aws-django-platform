@@ -13,20 +13,7 @@ the project is the infrastructure and the release process around it.
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    user([User]) -->|HTTPS| cf["CloudFront<br/>+ AWS WAF"]
-    cf -->|"/static/*"| s3[("S3<br/>static files")]
-    cf -->|"HTTPS + secret header"| alb["Application<br/>Load Balancer"]
-
-    subgraph vpc["VPC — 2 availability zones"]
-        alb --> ecs["ECS Fargate<br/>2–6 tasks"]
-        ecs --> rds[("RDS PostgreSQL<br/>Multi-AZ")]
-        ecs -.-> vpce["VPC endpoints"]
-    end
-
-    vpce -.-> aws["ECR · CloudWatch Logs<br/>Secrets Manager · S3"]
-```
+![Architecture diagram](docs/architecture.png)
 
 | Layer | Subnets | Notes |
 |---|---|---|
@@ -34,10 +21,6 @@ flowchart LR
 | Load balancer | Public | Accepts HTTPS only from CloudFront's IP ranges, and forwards only requests carrying the CloudFront secret header |
 | Application | Private (no internet route) | ECS Fargate, CPU target-tracking autoscaling from 2 to 6 tasks |
 | Database | Private (no internet route) | RDS PostgreSQL 17, Multi-AZ, encrypted, reachable only from the tasks' security group |
-
-Network layout:
-
-![Network diagram](docs/architecture.png)
 
 ## Design decisions
 
